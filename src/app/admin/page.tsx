@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore, useUser, useCollection, useDoc } from '@/firebase';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -96,11 +96,11 @@ const AdminPageContent: React.FC = () => {
     };
 
     const handleAssetUpload = async () => {
-        if (!firestore) return;
+        if (!firestore || !gameAssetsRef) return;
         const storage = getStorage();
         setIsUploading(true);
         toast({ title: 'Uploading...', description: 'Please wait while assets are being uploaded.' });
-    
+
         try {
             const uploadPromises = [
                 { file: bgFile, id: 'bg' },
@@ -118,8 +118,12 @@ const AdminPageContent: React.FC = () => {
             const updates = results.reduce((acc, res) => ({ ...acc, ...res }), {});
             
             if (Object.keys(updates).length > 0) {
-                if (!gameAssetsRef) return;
-                setDocumentNonBlocking(gameAssetsRef, updates, { merge: true });
+                const docSnap = await getDoc(gameAssetsRef);
+                if (docSnap.exists()) {
+                    updateDocumentNonBlocking(gameAssetsRef, updates);
+                } else {
+                    setDocumentNonBlocking(gameAssetsRef, updates, {});
+                }
                 toast({ title: 'Success', description: 'Game assets updated successfully.' });
             } else {
                 toast({ title: 'No files selected', description: 'Please select at least one file to upload.' });
@@ -129,10 +133,13 @@ const AdminPageContent: React.FC = () => {
             setBgFile(null);
             setPipeFile(null);
             setPlayerFile(null);
-            // Also reset the file input elements themselves
-            (document.getElementById('bgFile') as HTMLInputElement).value = '';
-            (document.getElementById('pipeFile') as HTMLInputElement).value = '';
-            (document.getElementById('playerFile') as HTMLInputElement).value = '';
+            const bgInput = document.getElementById('bgFile') as HTMLInputElement;
+            if (bgInput) bgInput.value = '';
+            const pipeInput = document.getElementById('pipeFile') as HTMLInputElement;
+            if (pipeInput) pipeInput.value = '';
+            const playerInput = document.getElementById('playerFile') as HTMLInputElement;
+            if (playerInput) playerInput.value = '';
+
         } catch (error: any) {
             console.error("Asset upload error:", error);
             toast({ variant: 'destructive', title: 'Upload Error', description: error.message || 'Could not upload assets.' });
@@ -309,3 +316,5 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
+
+    
