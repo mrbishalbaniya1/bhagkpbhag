@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
 import { Loader2, Music2, ShieldCheck, Trophy, Volume2, VolumeX } from 'lucide-react';
-import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking, updateDocumentNonBlocking, useAuth } from '@/firebase';
 import { collection, doc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -52,6 +52,7 @@ interface LeaderboardEntry {
 export default function GamePage() {
     const { user } = useUser();
     const firestore = useFirestore();
+    const auth = useAuth();
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'published_game_levels') : null, [firestore]);
     const { data: firebaseLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
 
@@ -872,6 +873,11 @@ export default function GamePage() {
                                         {isMuted ? <VolumeX /> : <Volume2 />}
                                         <span>{isMuted ? 'Unmute' : 'Mute'}</span>
                                     </Button>
+                                    {user && (
+                                        <Button variant="ghost" size="lg" onClick={() => auth?.signOut()} className="w-full transition-transform duration-200 hover:scale-105">
+                                            Sign Out
+                                        </Button>
+                                    )}
                                 </div>
                              </CardContent>
                         </Card>
@@ -927,5 +933,7 @@ export default function GamePage() {
     );
 }
 
+
+    
 
     
