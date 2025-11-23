@@ -10,8 +10,9 @@ import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking, u
 import { collection, doc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import Link from 'next/link';
 
 interface GameAsset {
     name: string;
@@ -910,6 +911,14 @@ export default function GamePage() {
                                     </TableBody>
                                 </Table>
                             </CardContent>
+                            {!user && (
+                                <CardFooter className="flex-col gap-2 pt-4">
+                                     <p className="text-sm text-muted-foreground">Sign up to save your score!</p>
+                                     <Button asChild>
+                                        <Link href="/login">Sign Up</Link>
+                                     </Button>
+                                </CardFooter>
+                            )}
                         </Card>
                     </div>
                 </div>
@@ -917,3 +926,6 @@ export default function GamePage() {
         </main>
     );
 }
+
+
+    
