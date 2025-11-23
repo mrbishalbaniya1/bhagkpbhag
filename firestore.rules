@@ -118,7 +118,7 @@ service cloud.firestore {
      * @deny Client-side writes are forbidden. Publishing is handled by a batch write.
      */
     match /published_game_levels/{gameLevelId} {
-        allow read: if true;
+        allow get, list: if true;
         allow write: if false; // CRITICAL: Prevent direct client-side edits to live levels.
     }
 
