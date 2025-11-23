@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -83,18 +82,22 @@ export default function AccountPage() {
         setIsUpdating(true);
         try {
             const updateData: Partial<UserProfile> = {};
+            let hasChanges = false;
             
             if (displayName.trim() && displayName.trim() !== userProfile?.displayName) {
                 updateData.displayName = displayName.trim();
+                hasChanges = true;
             }
             if (gameMode !== userProfile?.gameMode) {
                 updateData.gameMode = gameMode;
+                hasChanges = true;
             }
             if (difficulty !== userProfile?.difficulty) {
                 updateData.difficulty = difficulty;
+                 hasChanges = true;
             }
 
-            if (Object.keys(updateData).length === 0) {
+            if (!hasChanges) {
                 toast({
                     title: 'No Changes',
                     description: 'You haven\'t made any changes to save.',
@@ -103,9 +106,9 @@ export default function AccountPage() {
                 return;
             }
 
-            // We must include the highScore to pass security rules if only displayName is changing
-            if (updateData.displayName && Object.keys(updateData).length === 1) {
-                (updateData as any).highScore = userProfile?.highScore || 0;
+            // Always include the highScore to pass security rules if it's not being changed.
+            if (userProfile?.highScore !== undefined) {
+                 (updateData as any).highScore = userProfile.highScore;
             }
 
             updateDocumentNonBlocking(userProfileRef, updateData);
