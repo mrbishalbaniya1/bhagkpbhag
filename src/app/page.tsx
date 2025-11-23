@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -305,12 +306,12 @@ export default function GamePage() {
     }, [resetGame, currentLevel, imagesLoaded, gameMode]);
 
     const saveScoreToLeaderboard = useCallback(() => {
-        if (!firestore || !user || user.isAnonymous || gameMode === 'zen' || score === 0) return;
+        if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || score === 0) return;
 
         const leaderboardCollection = collection(firestore, 'leaderboard');
         const scoreData = {
             userId: user.uid,
-            displayName: userProfile?.displayName || user.email || 'Anonymous',
+            displayName: userProfile.displayName,
             score: score,
             createdAt: serverTimestamp(),
             difficulty: currentLevel.name,
@@ -932,3 +933,4 @@ export default function GamePage() {
         </main>
     );
 }
+
