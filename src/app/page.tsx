@@ -17,6 +17,12 @@ interface GameAsset {
     url: string;
 }
 
+interface GameAssets {
+    bg?: GameAsset;
+    player?: GameAsset;
+    pipes?: GameAsset[];
+}
+
 export default function GamePage() {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -24,7 +30,7 @@ export default function GamePage() {
     const { data: firebaseLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
 
     const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
-    const { data: gameAssets, isLoading: assetsLoading } = useDoc<{bg: GameAsset, pipe: GameAsset, player: GameAsset}>(gameAssetsRef);
+    const { data: gameAssets, isLoading: assetsLoading } = useDoc<GameAssets>(gameAssetsRef);
 
     const [imagesLoaded, setImagesLoaded] = useState(false);
     const [gameState, setGameState] = useState<'loading' | 'ready' | 'playing' | 'over'>('loading');
@@ -37,16 +43,16 @@ export default function GamePage() {
     const gameLoopRef = useRef<number>();
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
-    const pipesRef = useRef<Pipe[]>([]);
+    const pipesRef = useRef<(Pipe & { img: HTMLImageElement })[]>([]);
     const frameRef = useRef(0);
     const bgXRef = useRef(0);
 
     const bgImgRef = useRef<HTMLImageElement>();
-    const pipeImgRef = useRef<HTMLImageElement>();
+    const pipeImgsRef = useRef<HTMLImageElement[]>([]);
     const playerImgRef = useRef<HTMLImageElement>();
 
     useEffect(() => {
-        if (assetsLoading) return; // Wait until we know if there are custom assets or not.
+        if (assetsLoading) return;
 
         const storedHigh = typeof window !== 'undefined' ? localStorage.getItem("runKrishnaRun_high") || "0" : "0";
         setHighScore(parseInt(storedHigh, 10));
@@ -57,34 +63,47 @@ export default function GamePage() {
         const defaultPlayer = placeholderImages.find(p => p.id === 'game-player');
 
         const bgUrl = gameAssets?.bg?.url || defaultBg?.imageUrl;
-        const pipeUrl = gameAssets?.pipe?.url || defaultPipe?.imageUrl;
         const playerUrl = gameAssets?.player?.url || defaultPlayer?.imageUrl;
+        const pipeUrls = gameAssets?.pipes && gameAssets.pipes.length > 0
+            ? gameAssets.pipes.map(p => p.url)
+            : [defaultPipe?.imageUrl].filter((url): url is string => !!url);
 
-        if (!bgUrl || !pipeUrl || !playerUrl) {
-            console.error("Game assets could not be loaded.");
+        if (!bgUrl || !playerUrl || pipeUrls.length === 0) {
+            console.error("Some game assets could not be loaded.");
             return;
         }
 
         let isMounted = true;
-        setImagesLoaded(false); // Reset loading state when assets change
+        setImagesLoaded(false);
+        
         const loadImages = async () => {
-            const bgImg = new Image();
-            bgImg.src = bgUrl;
-            const pipeImg = new Image();
-            pipeImg.src = pipeUrl;
-            const playerImg = new Image();
-            playerImg.src = playerUrl;
-            
             try {
+                const bgImg = new Image();
+                bgImg.src = bgUrl;
+
+                const playerImg = new Image();
+                playerImg.src = playerUrl;
+                
+                const pipeImgPromises = pipeUrls.map(url => {
+                    const img = new Image();
+                    img.src = url;
+                    return img.decode();
+                });
+
                 await Promise.all([
                     bgImg.decode(),
-                    pipeImg.decode(),
                     playerImg.decode(),
+                    ...pipeImgPromises
                 ]);
+
                 if (isMounted) {
                     bgImgRef.current = bgImg;
-                    pipeImgRef.current = pipeImg;
                     playerImgRef.current = playerImg;
+                    pipeImgsRef.current = pipeUrls.map(url => {
+                        const img = new Image();
+                        img.src = url;
+                        return img;
+                    });
                     setImagesLoaded(true);
                 }
             } catch (error) {
@@ -98,10 +117,10 @@ export default function GamePage() {
         };
     }, [gameAssets, assetsLoading]);
 
+
     useEffect(() => {
         if (firebaseLevels && firebaseLevels.length > 0) {
             setGameLevels(firebaseLevels);
-            // If current level is a default one, check if a remote one with same ID exists
             const remoteLevel = firebaseLevels.find(l => l.id === currentLevel.id);
             if (remoteLevel) {
                 setCurrentLevel(remoteLevel);
@@ -174,7 +193,7 @@ export default function GamePage() {
     const gameLoop = useCallback(() => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx || !bgImgRef.current || !pipeImgRef.current || !playerImgRef.current || !currentLevel) return;
+        if (!canvas || !ctx || !bgImgRef.current || !playerImgRef.current || pipeImgsRef.current.length === 0 || !currentLevel) return;
         
         const dpr = window.devicePixelRatio || 1;
         const cw = canvas.width / dpr;
@@ -215,6 +234,7 @@ export default function GamePage() {
             const maxTop = ch - gap - 120;
             const topHeight = Math.floor(minTop + Math.random() * (maxTop - minTop));
             const pipeW = Math.min(140, Math.max(60, cw * 0.12));
+            const randomPipeImg = pipeImgsRef.current[Math.floor(Math.random() * pipeImgsRef.current.length)];
 
             pipesRef.current.push({
                 x: cw + 30,
@@ -223,6 +243,7 @@ export default function GamePage() {
                 bottom: ch - (topHeight + gap),
                 speed: L.speed,
                 passed: false,
+                img: randomPipeImg,
             });
         }
         
@@ -237,8 +258,8 @@ export default function GamePage() {
         ctx.drawImage(bgImgRef.current, bgXRef.current + sw, 0, sw, sh);
 
         pipesRef.current.forEach(p => {
-            ctx.drawImage(pipeImgRef.current!, p.x, 0, p.w, p.top);
-            ctx.drawImage(pipeImgRef.current!, p.x, ch - p.bottom, p.w, p.bottom);
+            ctx.drawImage(p.img, p.x, 0, p.w, p.top);
+            ctx.drawImage(p.img, p.x, ch - p.bottom, p.w, p.bottom);
         });
 
         ctx.save();
@@ -363,3 +384,5 @@ export default function GamePage() {
         </main>
     );
 }
+
+    

@@ -149,11 +149,14 @@
             "url": {"type": "string", "format": "uri"}
           }
         },
-        "pipe": {
-          "type": "object",
-          "properties": {
-            "name": {"type": "string"},
-            "url": {"type": "string", "format": "uri"}
+        "pipes": {
+          "type": "array",
+          "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "url": {"type": "string", "format": "uri"}
+              }
           }
         },
         "player": {
@@ -272,3 +275,5 @@
     ]
   }
 }
+
+    
