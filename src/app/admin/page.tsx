@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useFirestore, useUser, useCollection, useDoc } from '@/firebase';
+import { useAuth, useFirestore, useUser, useCollection, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { collection, doc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -103,18 +103,15 @@ const AdminPageContent: React.FC = () => {
             return;
         }
 
-        if (!apiKey) {
-            toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary API key is not configured.' });
-            return;
-        }
-
         setUploadingStates(prev => ({ ...prev, [assetId]: true }));
         toast({ title: `Uploading ${assetId}...`, description: 'Please wait.' });
 
         const cloudinaryFormData = new FormData();
         cloudinaryFormData.append('file', file);
         cloudinaryFormData.append('upload_preset', 'ml_default');
-        cloudinaryFormData.append('api_key', apiKey);
+        if (apiKey) {
+            cloudinaryFormData.append('api_key', apiKey);
+        }
         
         const resourceType = assetId === 'bgMusic' ? 'video' : 'image';
 
@@ -123,11 +120,11 @@ const AdminPageContent: React.FC = () => {
                 method: 'POST',
                 body: cloudinaryFormData,
             });
-
+            
             const cloudinaryData = await response.json();
 
             if (!response.ok) {
-                 const errorMessage = cloudinaryData?.error?.message || `Failed to upload to Cloudinary.`;
+                 const errorMessage = cloudinaryData?.error?.message || `Failed to upload to Cloudinary. Status: ${response.status}`;
                  throw new Error(errorMessage);
             }
             
@@ -199,11 +196,7 @@ const AdminPageContent: React.FC = () => {
     const handleDeleteLevel = (levelId: string) => {
         if (!firestore) return;
         const levelRef = doc(firestore, 'game_levels', levelId);
-        // Using `deleteDocumentNonBlocking` which you should define in a similar fashion as other non-blocking updates
-        // For now, let's assume it exists and works like this:
-        // deleteDocumentNonBlocking(levelRef);
-        // Since it's not defined in the provided context, I'll use the blocking version for now.
-        updateDocumentNonBlocking(doc(firestore, 'game_levels', levelId), { _delete: true });
+        deleteDocumentNonBlocking(levelRef);
         toast({ title: 'Success', description: 'Game level deleted.' });
     };
 
@@ -314,7 +307,6 @@ const AdminPageContent: React.FC = () => {
                                     type={key === 'name' ? 'text' : 'number'}
                                     className="col-span-3"
                                     required
-                                    disabled={key === 'id' && !!editingLevel}
                                 />
                             </div>
                         ))}
