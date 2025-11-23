@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
-import { Loader2, Music2, ShieldCheck, Trophy, Volume2, VolumeX } from 'lucide-react';
+import { Loader2, Music, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking, updateDocumentNonBlocking, useAuth } from '@/firebase';
 import { collection, doc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Link from 'next/link';
+import { ShieldCheck } from 'lucide-react';
 
 interface GameAsset {
     name: string;
@@ -873,7 +874,7 @@ export default function GamePage() {
                                         {isMuted ? <VolumeX /> : <Volume2 />}
                                         <span>{isMuted ? 'Unmute' : 'Mute'}</span>
                                     </Button>
-                                    {user && (
+                                    {user && !user.isAnonymous && (
                                         <Button variant="ghost" size="lg" onClick={() => auth?.signOut()} className="w-full transition-transform duration-200 hover:scale-105">
                                             Sign Out
                                         </Button>
@@ -917,7 +918,7 @@ export default function GamePage() {
                                     </TableBody>
                                 </Table>
                             </CardContent>
-                            {!user && (
+                            {!user || user.isAnonymous && (
                                 <CardFooter className="flex-col gap-2 pt-4">
                                      <p className="text-sm text-muted-foreground">Sign up to save your score!</p>
                                      <Button asChild>
@@ -932,10 +933,3 @@ export default function GamePage() {
         </main>
     );
 }
-
-
-    
-
-    
-
-    
