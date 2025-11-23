@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/provider';
+import { useUser } from '@/firebase/auth/use-user';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 
 interface GameEvent {
     id: string;
@@ -19,21 +22,33 @@ interface GameEvent {
 }
 
 const AnalyticsPage = () => {
+    const { isAdmin, isUserLoading } = useUser();
     const firestore = useFirestore();
+    const router = useRouter();
     
     const gameEventsRef = useMemoFirebase(
-        () => firestore ? collection(firestore, 'game_events') : null,
-        [firestore]
+        () => firestore && isAdmin ? collection(firestore, 'game_events') : null,
+        [firestore, isAdmin]
     );
 
     const { data: gameEvents, isLoading } = useCollection<GameEvent>(gameEventsRef);
 
-    if (isLoading) {
+    if (isUserLoading || isLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
         );
+    }
+
+    if (!isAdmin) {
+        return (
+             <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+                <p className="text-2xl text-destructive font-bold">Access Denied</p>
+                <p className="text-muted-foreground mt-2">You do not have permission to view this page.</p>
+                <Button onClick={() => router.push('/')} className="mt-6">Go to Homepage</Button>
+            </div>
+        )
     }
     
     const formatDate = (timestamp: GameEvent['timestamp']) => {
