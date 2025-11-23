@@ -47,8 +47,8 @@ export default function AccountPage() {
         if (!userProfileRef || !displayName.trim()) {
             toast({
                 variant: 'destructive',
-                title: 'Invalid Name',
-                description: 'Display name cannot be empty.',
+                title: 'Invalid Username',
+                description: 'Username cannot be empty.',
             });
             return;
         }
@@ -101,13 +101,13 @@ export default function AccountPage() {
                             <Input id="email" type="email" value={userProfile?.email || ''} disabled />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="displayName">Display Name</Label>
+                            <Label htmlFor="displayName">Username</Label>
                             <Input
                                 id="displayName"
                                 type="text"
                                 value={displayName}
                                 onChange={(e) => setDisplayName(e.target.value)}
-                                placeholder="Enter your display name"
+                                placeholder="Enter your new username"
                             />
                         </div>
                         <Button type="submit" disabled={isUpdating} className="w-full">
