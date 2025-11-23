@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -76,6 +75,9 @@ export default function GamePage() {
     const [highScore, setHighScore] = useState(0);
     const [coins, setCoins] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
+    
+    const [leaderboardPage, setLeaderboardPage] = useState(0);
+    const LEADERBOARD_PAGE_SIZE = 3;
 
     // Game Modes
     const [gameMode, setGameMode] = useState<GameMode>('classic');
@@ -313,7 +315,7 @@ export default function GamePage() {
             difficulty: currentLevel.name,
         };
         addDocumentNonBlocking(leaderboardCollection, scoreData);
-    }, [firestore, user, userProfile, score, currentLevel, gameMode]);
+    }, [firestore, user, userProfile, score, currentLevel.name, gameMode]);
 
     const logGameEvent = useCallback(() => {
         if (!firestore || !user) return;
@@ -337,13 +339,14 @@ export default function GamePage() {
         audioRef.current?.pause();
         collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
         if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
+        setLeaderboardPage(0);
 
         if (gameMode !== 'zen') {
              if (score > highScore) {
                 setHighScore(score);
                 if (user && !user.isAnonymous && firestore && userProfileRef) {
                     updateDocumentNonBlocking(userProfileRef, { highScore: score });
-                } else if (!user?.isAnonymous) {
+                } else if (typeof window !== 'undefined') {
                     localStorage.setItem("BhagKpBhag_high", score.toString());
                 }
             }
@@ -759,16 +762,10 @@ export default function GamePage() {
     };
 
     const handleRestart = () => {
+        resetGame();
         setGameState('ready');
         startGame();
     };
-
-// This is wrong, it causes an infinite loop
-//  const handleRestart = () => {
-//      resetGame();
-//      startGame();
-//  };
-
 
     const toggleMute = () => {
         setIsMuted(!isMuted);
@@ -782,6 +779,13 @@ export default function GamePage() {
             day: 'numeric',
         });
     };
+    
+    const paginatedLeaderboard = leaderboard?.slice(
+        leaderboardPage * LEADERBOARD_PAGE_SIZE,
+        leaderboardPage * LEADERBOARD_PAGE_SIZE + LEADERBOARD_PAGE_SIZE
+    );
+    const totalLeaderboardPages = leaderboard ? Math.ceil(leaderboard.length / LEADERBOARD_PAGE_SIZE) : 0;
+
 
     if (gameState === 'loading' || !imagesLoaded || leaderboardLoading) {
         return (
@@ -910,10 +914,12 @@ export default function GamePage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {leaderboard && leaderboard.length > 0 ? (
-                                            leaderboard.map((entry, index) => (
+                                        {paginatedLeaderboard && paginatedLeaderboard.length > 0 ? (
+                                            paginatedLeaderboard.map((entry, index) => (
                                                 <TableRow key={entry.id}>
-                                                    <TableCell className="font-medium">{index + 1}</TableCell>
+                                                    <TableCell className="font-medium">
+                                                        {leaderboardPage * LEADERBOARD_PAGE_SIZE + index + 1}
+                                                    </TableCell>
                                                     <TableCell>{entry.displayName}</TableCell>
                                                     <TableCell>{entry.score}</TableCell>
                                                     <TableCell className="text-right">{formatDate(entry.createdAt)}</TableCell>
@@ -927,6 +933,27 @@ export default function GamePage() {
                                     </TableBody>
                                 </Table>
                             </CardContent>
+                             {leaderboard && leaderboard.length > LEADERBOARD_PAGE_SIZE && (
+                                <CardFooter className="flex justify-between pt-4">
+                                    <Button 
+                                        variant="outline"
+                                        onClick={() => setLeaderboardPage(p => Math.max(0, p - 1))}
+                                        disabled={leaderboardPage === 0}
+                                    >
+                                        Previous
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Page {leaderboardPage + 1} of {totalLeaderboardPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setLeaderboardPage(p => Math.min(totalLeaderboardPages - 1, p + 1))}
+                                        disabled={leaderboardPage >= totalLeaderboardPages - 1}
+                                    >
+                                        Next
+                                    </Button>
+                                </CardFooter>
+                             )}
                             {(!user || user.isAnonymous) && (
                                 <CardFooter className="flex-col gap-2 pt-4">
                                      <p className="text-sm text-muted-foreground">Sign up to save your score!</p>
