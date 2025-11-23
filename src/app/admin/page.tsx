@@ -107,13 +107,13 @@ const AdminPageContent: React.FC = () => {
                 body: cloudinaryFormData,
             });
 
-            const cloudinaryData = await response.json();
-
             if (!response.ok) {
+                 const cloudinaryData = await response.json();
                  const errorMessage = cloudinaryData?.error?.message || 'Failed to upload to Cloudinary';
                  throw new Error(errorMessage);
             }
             
+            const cloudinaryData = await response.json();
             const url = cloudinaryData.secure_url;
             const updates = { [assetId]: { name: file.name, url } };
             
@@ -291,5 +291,3 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
-
-    
