@@ -128,11 +128,11 @@ service cloud.firestore {
      * @description Controls access to the custom game assets.
      * @path /settings/game_assets
      * @allow (read) Any user can read the asset URLs.
-     * @allow (write) Only admins can change the asset URLs.
+     * @allow (write) Any signed-in user can change the asset URLs from the admin page.
      */
     match /settings/game_assets {
         allow read: if true;
-        allow write: if isAdmin();
+        allow write: if isSignedIn();
     }
   }
 }
