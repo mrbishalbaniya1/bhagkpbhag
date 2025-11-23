@@ -18,7 +18,7 @@ import { useMemoFirebase } from '@/firebase/provider';
 
 type GameLevelData = Omit<GameLevel, 'id'>;
 
-const AdminPage: React.FC = () => {
+const AdminPageContent: React.FC = () => {
     const { user, isUserLoading } = useUser();
     const auth = useAuth();
     const firestore = useFirestore();
@@ -87,7 +87,6 @@ const AdminPage: React.FC = () => {
                 toast({ title: 'Success', description: 'Game level updated successfully.' });
             } else {
                 const newLevelId = formData.name.toLowerCase().replace(/\s/g, '-');
-                const levelRef = doc(firestore, 'game_levels', newLevelId);
                 addDocumentNonBlocking(collection(firestore, 'game_levels'), { ...formData, id: newLevelId });
                 toast({ title: 'Success', description: 'Game level added successfully.' });
             }
@@ -197,5 +196,11 @@ const AdminPage: React.FC = () => {
         </div>
     );
 };
+
+// This wrapper component is necessary to avoid issues with Next.js's new `searchParams` handling.
+// The page itself can't be a client component if it receives searchParams, but the content can.
+const AdminPage = () => {
+    return <AdminPageContent />;
+}
 
 export default AdminPage;
