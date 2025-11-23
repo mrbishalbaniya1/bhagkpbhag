@@ -7,7 +7,7 @@ import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
 import { Loader2, Music2, ShieldCheck, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking } from '@/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,8 +34,13 @@ interface GameAssets {
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
 
 interface LeaderboardEntry {
+    id: string;
+    displayName: string;
     score: number;
-    date: string;
+    createdAt: {
+        seconds: number;
+        nanoseconds: number;
+    };
 }
 
 export default function GamePage() {
@@ -46,6 +51,13 @@ export default function GamePage() {
 
     const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
     const { data: gameAssets, isLoading: assetsLoading } = useDoc<GameAssets>(gameAssetsRef);
+    
+    const userProfileRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+    const { data: userProfile } = useDoc<{displayName: string}>(userProfileRef);
+    
+    const leaderboardRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'leaderboard'), orderBy('score', 'desc'), limit(10)) : null, [firestore]);
+    const { data: leaderboard, isLoading: leaderboardLoading } = useCollection<LeaderboardEntry>(leaderboardRef);
+
 
     const [imagesLoaded, setImagesLoaded] = useState(false);
     const [gameState, setGameState] = useState<'loading' | 'ready' | 'playing' | 'over'>('loading');
@@ -53,7 +65,6 @@ export default function GamePage() {
     const [currentLevel, setCurrentLevel] = useState<GameLevel>(defaultGameLevels[0]);
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
-    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [coins, setCoins] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
 
@@ -100,12 +111,7 @@ export default function GamePage() {
         if (typeof window !== 'undefined') {
             const storedHigh = localStorage.getItem("runKrishnaRun_high") || "0";
             setHighScore(parseInt(storedHigh, 10));
-            const storedLeaderboard = localStorage.getItem("runKrishnaRun_leaderboard");
-            if (storedLeaderboard) {
-                setLeaderboard(JSON.parse(storedLeaderboard));
-            }
         }
-
 
         const placeholderImages = getPlaceholderImages();
         
@@ -290,14 +296,19 @@ export default function GamePage() {
         }
     }, [resetGame, currentLevel, imagesLoaded, gameMode]);
 
-    const updateLeaderboard = (newScore: number) => {
-        const newEntry = { score: newScore, date: new Date().toLocaleDateString() };
-        const updatedLeaderboard = [...leaderboard, newEntry]
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 5);
-        setLeaderboard(updatedLeaderboard);
-        localStorage.setItem("runKrishnaRun_leaderboard", JSON.stringify(updatedLeaderboard));
-    };
+    const saveScoreToLeaderboard = useCallback(() => {
+        if (!firestore || !user || gameMode === 'zen' || score === 0) return;
+
+        const leaderboardCollection = collection(firestore, 'leaderboard');
+        const scoreData = {
+            userId: user.uid,
+            displayName: userProfile?.displayName || user.email || 'Anonymous',
+            score: score,
+            createdAt: serverTimestamp(),
+            difficulty: currentLevel.name,
+        };
+        addDocumentNonBlocking(leaderboardCollection, scoreData);
+    }, [firestore, user, userProfile, score, currentLevel, gameMode]);
 
     const logGameEvent = useCallback(() => {
         if (!firestore || !user) return;
@@ -327,10 +338,10 @@ export default function GamePage() {
                 setHighScore(score);
                 localStorage.setItem("runKrishnaRun_high", score.toString());
             }
-            updateLeaderboard(score);
+            saveScoreToLeaderboard();
             logGameEvent();
         }
-    }, [score, highScore, gameMode, leaderboard, logGameEvent]);
+    }, [score, highScore, gameMode, saveScoreToLeaderboard, logGameEvent]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {
@@ -746,8 +757,17 @@ export default function GamePage() {
     const toggleMute = () => {
         setIsMuted(!isMuted);
     };
+    
+    const formatDate = (timestamp: LeaderboardEntry['createdAt']) => {
+        if (!timestamp) return 'N/A';
+        const date = new Date(timestamp.seconds * 1000);
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+        });
+    };
 
-    if (gameState === 'loading' || !imagesLoaded) {
+    if (gameState === 'loading' || !imagesLoaded || leaderboardLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -850,30 +870,32 @@ export default function GamePage() {
                             <CardHeader>
                                 <CardTitle className="flex items-center justify-center gap-2">
                                     <Trophy className="text-yellow-500" />
-                                    <span>Local Leaderboard</span>
+                                    <span>Leaderboard</span>
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-[100px]">Rank</TableHead>
+                                            <TableHead className="w-[40px]">Rank</TableHead>
+                                            <TableHead>Player</TableHead>
                                             <TableHead>Score</TableHead>
                                             <TableHead className="text-right">Date</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {leaderboard.length > 0 ? (
+                                        {leaderboard && leaderboard.length > 0 ? (
                                             leaderboard.map((entry, index) => (
-                                                <TableRow key={index}>
+                                                <TableRow key={entry.id}>
                                                     <TableCell className="font-medium">{index + 1}</TableCell>
+                                                    <TableCell>{entry.displayName}</TableCell>
                                                     <TableCell>{entry.score}</TableCell>
-                                                    <TableCell className="text-right">{entry.date}</TableCell>
+                                                    <TableCell className="text-right">{formatDate(entry.createdAt)}</TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={3} className="text-center">No scores yet. Play a game!</TableCell>
+                                                <TableCell colSpan={4} className="text-center">No scores yet. Play a game!</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>

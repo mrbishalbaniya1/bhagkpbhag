@@ -96,6 +96,7 @@
         }
       },
       "required": [
+        "displayName",
         "email"
       ]
     },
@@ -257,6 +258,36 @@
             }
         },
         "required": ["userId", "timestamp", "score", "difficulty"]
+    },
+    "LeaderboardEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaderboardEntry",
+      "type": "object",
+      "description": "Represents a single entry on the leaderboard.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who achieved the score."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The display name of the user at the time of the score."
+        },
+        "score": {
+          "type": "number",
+          "description": "The score achieved by the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the score was recorded."
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "The difficulty level played."
+        }
+      },
+      "required": ["userId", "displayName", "score", "createdAt"]
     }
   },
   "auth": {
@@ -392,6 +423,22 @@
                     "description": "The unique ID for the game event."
                 }
             ]
+        }
+      },
+      {
+        "path": "/leaderboard/{entryId}",
+        "definition": {
+          "entityName": "LeaderboardEntry",
+          "schema": {
+            "$ref": "#/backend/entities/LeaderboardEntry"
+          },
+          "description": "Stores a single leaderboard entry.",
+          "params": [
+            {
+              "name": "entryId",
+              "description": "The unique ID for the leaderboard entry."
+            }
+          ]
         }
       }
     ]

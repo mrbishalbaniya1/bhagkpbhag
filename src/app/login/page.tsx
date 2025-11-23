@@ -2,40 +2,55 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/firebase';
-import { initiateEmailSignIn, initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
+import { useAuth, useFirestore } from '@/firebase';
+import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { signInAnonymously } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [isSigningUp, setIsSigningUp] = useState(false);
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleAuthAction = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || !firestore) return;
 
-    // Pass the toast function to the sign-in handler
-    initiateEmailSignIn(auth, email, password, toast);
+    if (isSigningUp) {
+      if (!displayName) {
+        toast({
+            variant: 'destructive',
+            title: 'Display Name Required',
+            description: 'Please enter a display name to create an account.',
+        });
+        return;
+      }
+      // Pass firestore and displayName to the sign-in handler for user profile creation
+      initiateEmailSignIn(auth, email, password, toast, { firestore, displayName });
+    } else {
+      initiateEmailSignIn(auth, email, password, toast);
+    }
     
-    // The onAuthStateChanged listener will handle redirects on success.
-    // We can show a toast to let the user know something is happening.
     toast({
-      title: 'Verifying...',
-      description: 'Please wait while we check your credentials.',
+      title: isSigningUp ? 'Creating account...' : 'Verifying...',
+      description: 'Please wait.',
     });
   };
   
   const handleAnonymousSignIn = async () => {
     if (!auth) return;
     try {
-      initiateAnonymousSignIn(auth);
+      await signInAnonymously(auth);
       toast({
         title: 'Signing In...',
         description: 'You are being signed in as a guest.',
@@ -56,13 +71,28 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Admin Login</CardTitle>
+          <CardTitle className="text-2xl">{isSigningUp ? 'Create an Account' : 'Admin Login'}</CardTitle>
           <CardDescription>
-            Enter your email below to login. If the account doesn't exist, it will be created.
+            {isSigningUp 
+              ? 'Enter your details to create a new account.' 
+              : "Enter your email below to login. New users will be prompted to sign up."}
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSignIn}>
+        <form onSubmit={handleAuthAction}>
           <CardContent className="grid gap-4">
+            {isSigningUp && (
+               <div className="grid gap-2">
+                  <Label htmlFor="displayName">Display Name</Label>
+                  <Input
+                    id="displayName"
+                    type="text"
+                    placeholder="Your Name"
+                    required
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
+               </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -86,7 +116,10 @@ export default function LoginPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full">Sign in / Sign up</Button>
+            <Button type="submit" className="w-full">{isSigningUp ? 'Sign Up' : 'Sign In'}</Button>
+             <Button variant="link" type="button" onClick={() => setIsSigningUp(!isSigningUp)}>
+                {isSigningUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+             </Button>
             <Button variant="outline" className="w-full" onClick={handleAnonymousSignIn} type="button">
               Continue as Guest
             </Button>

@@ -18,6 +18,7 @@
  * - /settings/admin: A singleton document for global app settings, only writable by admins.
  * - /settings/game_assets: A singleton for custom game image URLs. Writable by admins, readable by all.
  * - /game_events/{eventId}: Stores analytics data for game sessions. Writable by any signed-in user, readable only by admins.
+ * - /leaderboard/{entryId}: Stores public leaderboard scores. Writable by users for their own scores, readable by all.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -58,12 +59,14 @@ service cloud.firestore {
       /**
        * @description Controls access to user profile documents.
        * @path /users/{userId}
-       * @allow A user can read, create, update, and delete their own profile.
+       * @allow A user can read their own profile.
+       * @allow A user can create their own profile.
+       * @deny A user cannot update or delete their profile after creation.
        * @deny A user cannot access another user's profile.
-       * @deny Listing all users is forbidden to protect privacy.
        */
-      allow read, write: if isOwner(userId);
-      allow list: if false;
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update, delete, list: if false;
 
       /**
        * @description Controls access to a user's activity log.
@@ -76,6 +79,23 @@ service cloud.firestore {
         allow create, read: if isOwner(userId);
         allow update, delete, list: if false;
       }
+    }
+    
+    // -------------------------------------------------------------------------
+    // Leaderboard (/leaderboard)
+    // -------------------------------------------------------------------------
+    
+    /**
+     * @description Controls access to the global leaderboard.
+     * @path /leaderboard/{entryId}
+     * @allow (read) Anyone can read the leaderboard scores.
+     * @allow (create) A signed-in user can create a score only for themselves.
+     * @deny Updates and deletes are forbidden from the client to prevent tampering.
+     */
+    match /leaderboard/{entryId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // -------------------------------------------------------------------------
@@ -130,7 +150,7 @@ service cloud.firestore {
     /**
      * @description Controls access to the analytics game events.
      * @path /game_events/{eventId}
-     * @allow (create) Any signed-in user can create a game event.
+     * @allow (write) Any signed-in user can create a game event.
      * @allow (read, list) Only admins can read the analytics data.
      * @deny Updates and deletes are not allowed to ensure data integrity.
      */
