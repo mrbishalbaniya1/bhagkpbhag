@@ -97,16 +97,24 @@ const AdminPageContent: React.FC = () => {
 
     const handleAssetUpload = async () => {
         if (!firestore || !gameAssetsRef) return;
+        
+        const filesToUpload = [
+            { file: bgFile, id: 'bg' },
+            { file: pipeFile, id: 'pipe' },
+            { file: playerFile, id: 'player' }
+        ].filter(item => item.file);
+
+        if (filesToUpload.length === 0) {
+            toast({ title: 'No files selected', description: 'Please select at least one file to upload.' });
+            return;
+        }
+
         const storage = getStorage();
         setIsUploading(true);
         toast({ title: 'Uploading...', description: 'Please wait while assets are being uploaded.' });
 
         try {
-            const uploadPromises = [
-                { file: bgFile, id: 'bg' },
-                { file: pipeFile, id: 'pipe' },
-                { file: playerFile, id: 'player' }
-            ].filter(item => item.file).map(async ({ file, id }) => {
+            const uploadPromises = filesToUpload.map(async ({ file, id }) => {
                 if(!file) return null;
                 const storageRef = ref(storage, `game_assets/${id}_${Date.now()}_${file.name}`);
                 await uploadBytes(storageRef, file);
@@ -125,8 +133,6 @@ const AdminPageContent: React.FC = () => {
                     setDocumentNonBlocking(gameAssetsRef, updates, {});
                 }
                 toast({ title: 'Success', description: 'Game assets updated successfully.' });
-            } else {
-                toast({ title: 'No files selected', description: 'Please select at least one file to upload.' });
             }
     
             // Clear file inputs
