@@ -7,7 +7,7 @@ import { useAuth, useFirestore, useUser, useCollection, useDoc, deleteDocumentNo
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { collection, doc, getDoc, arrayUnion, arrayRemove, writeBatch, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -310,6 +310,7 @@ const AdminPageContent: React.FC = () => {
             <Card className="mb-8">
                 <CardHeader>
                     <CardTitle>Game Visual Assets</CardTitle>
+                    <CardDescription>Manage the core visual elements of the game, including the background, player, and pipe images.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-3 gap-8">
@@ -354,6 +355,7 @@ const AdminPageContent: React.FC = () => {
             <Card className="mb-8">
                 <CardHeader>
                     <CardTitle>Collectibles & Power-ups</CardTitle>
+                    <CardDescription>Upload images for the items players can collect during the game.</CardDescription>
                 </CardHeader>
                  <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-4 gap-8">
@@ -368,6 +370,7 @@ const AdminPageContent: React.FC = () => {
              <Card className="mb-8">
                 <CardHeader>
                     <CardTitle>Game Audio Assets</CardTitle>
+                    <CardDescription>Manage the background music and sound effects for game events like jumping and collisions.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-3 gap-8">
@@ -461,4 +464,5 @@ const AdminPage = () => {
 
 export default AdminPage;
 
+    
     
