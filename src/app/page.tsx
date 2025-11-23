@@ -333,6 +333,12 @@ export default function GamePage() {
                 const keyEvent = e as KeyboardEvent;
                 if (keyEvent.key !== ' ' && keyEvent.key !== 'Enter') return;
             }
+
+            if (gameState === 'over') {
+                // Do nothing on click/key when game is over
+                return;
+            }
+
             jump();
         };
         
@@ -343,7 +349,7 @@ export default function GamePage() {
             window.removeEventListener('pointerdown', handleInput);
             window.removeEventListener('keydown', handleInput);
         };
-    }, [jump]);
+    }, [jump, gameState]);
 
     useEffect(() => {
         if(audioRef.current){
@@ -394,11 +400,6 @@ export default function GamePage() {
                 <>
                     <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
                         {user && <Link href="/admin"><Button variant="secondary">Admin</Button></Link>}
-                        {gameAssets?.bgMusic?.url && (
-                            <Button variant="secondary" size="icon" onClick={toggleMute}>
-                                {isMuted ? <Music2 /> : <Music />}
-                            </Button>
-                        )}
                     </div>
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
                         <div className="text-3xl font-bold">{score}</div>
@@ -436,6 +437,12 @@ export default function GamePage() {
                             <Button size="lg" onClick={handleRestart} className="w-full">
                                 Restart
                             </Button>
+                            {gameAssets?.bgMusic?.url && (
+                                <Button variant="outline" size="lg" onClick={toggleMute} className="w-full flex items-center gap-2">
+                                    {isMuted ? <Music2 /> : <Music />}
+                                    <span>{isMuted ? 'Unmute' : 'Mute'}</span>
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>
