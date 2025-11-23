@@ -29,6 +29,10 @@ interface GameAssets {
     player?: GameAsset;
     pipes?: GameAsset[];
     bgMusic?: GameAsset;
+    coin?: GameAsset;
+    shield?: GameAsset;
+    slowMo?: GameAsset;
+    doubleScore?: GameAsset;
 }
 
 const AdminPageContent: React.FC = () => {
@@ -91,7 +95,7 @@ const AdminPageContent: React.FC = () => {
         setFormData(prev => ({ ...prev, [name]: name === 'name' ? value : Number(value) }));
     };
 
-    const handleFileChange = (assetId: 'bg' | 'player' | 'pipes' | 'bgMusic') => async (e: ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (assetId: keyof GameAssets) => async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !firestore || !gameAssetsRef) return;
         
@@ -123,7 +127,7 @@ const AdminPageContent: React.FC = () => {
             
             const cloudinaryData = await response.json();
 
-            if (!response.ok) {
+            if (!response.ok || cloudinaryData.error) {
                  const errorMessage = cloudinaryData?.error?.message || `Failed to upload to Cloudinary. Status: ${response.status}`;
                  throw new Error(errorMessage);
             }
@@ -200,6 +204,19 @@ const AdminPageContent: React.FC = () => {
         toast({ title: 'Success', description: 'Game level deleted.' });
     };
 
+    const AssetUploadCard: React.FC<{assetId: keyof GameAssets, label: string, isUploading: boolean}> = ({ assetId, label, isUploading }) => (
+        <div className="space-y-2">
+            <Label htmlFor={`${assetId}File`} className="capitalize text-lg">{label}</Label>
+            <div className='relative w-full h-40'>
+                {gameAssets && gameAssets[assetId] && !Array.isArray(gameAssets[assetId]) ? (
+                    <Image src={(gameAssets[assetId] as GameAsset).url} alt={`Current ${label}`} fill className="rounded-md border object-cover" />
+                ) : <div className="w-full h-full flex items-center justify-center bg-muted rounded-md"><p className="text-sm text-muted-foreground">No custom image.</p></div>}
+            </div>
+            <Input id={`${assetId}File`} type="file" accept="image/*" onChange={handleFileChange(assetId)} disabled={isUploading}/>
+            {isUploading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
+        </div>
+    );
+
     if (isUserLoading || levelsLoading || assetsLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
@@ -221,25 +238,13 @@ const AdminPageContent: React.FC = () => {
 
             <Card className="mb-8">
                 <CardHeader>
-                    <CardTitle>Game Assets</CardTitle>
+                    <CardTitle>Game Visual Assets</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-3 gap-8">
-                        {/* BG and Player */}
-                        <div className="space-y-6">
-                            {(['bg', 'player'] as const).map(assetKey => (
-                                <div key={assetKey} className="space-y-2">
-                                    <Label htmlFor={`${assetKey}File`} className="capitalize text-lg">{assetKey} Image</Label>
-                                    <div className='relative w-full h-40'>
-                                    {gameAssets && gameAssets[assetKey]?.url ? (
-                                        <Image src={gameAssets[assetKey]!.url} alt={`Current ${assetKey}`} fill className="rounded-md border object-cover" />
-                                    ) : <div className="w-full h-full flex items-center justify-center bg-muted rounded-md"><p className="text-sm text-muted-foreground">No custom image.</p></div>}
-                                    </div>
-                                    <Input id={`${assetKey}File`} type="file" accept="image/*" onChange={handleFileChange(assetKey)} disabled={uploadingStates[assetKey]}/>
-                                    {uploadingStates[assetKey] && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
-                                </div>
-                            ))}
-                        </div>
+                        <AssetUploadCard assetId="bg" label="Background Image" isUploading={!!uploadingStates['bg']} />
+                        <AssetUploadCard assetId="player" label="Player Image" isUploading={!!uploadingStates['player']} />
+
                         {/* Pipe Images */}
                         <div className="space-y-4">
                              <Label htmlFor="pipesFile" className="text-lg">Pipe Images</Label>
@@ -271,6 +276,30 @@ const AdminPageContent: React.FC = () => {
                                 )}
                             </div>
                         </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>Collectibles & Power-ups</CardTitle>
+                </CardHeader>
+                 <CardContent className="space-y-6">
+                    <div className="grid md:grid-cols-4 gap-8">
+                        <AssetUploadCard assetId="coin" label="Coin" isUploading={!!uploadingStates['coin']} />
+                        <AssetUploadCard assetId="shield" label="Shield" isUploading={!!uploadingStates['shield']} />
+                        <AssetUploadCard assetId="slowMo" label="Slow-Mo" isUploading={!!uploadingStates['slowMo']} />
+                        <AssetUploadCard assetId="doubleScore" label="Double Score" isUploading={!!uploadingStates['doubleScore']} />
+                    </div>
+                 </CardContent>
+            </Card>
+
+             <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>Game Audio Assets</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="grid md:grid-cols-3 gap-8">
                         {/* Background Music */}
                         <div className="space-y-2">
                              <Label htmlFor="bgMusicFile" className="text-lg">Background Music</Label>

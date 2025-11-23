@@ -17,6 +17,30 @@
       "description": "The player character, Krishna, running.",
       "imageUrl": "https://images.unsplash.com/photo-1614760395555-ed0db393cb79?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxydW5uaW5nJTIwZGVpdHl8ZW58MHx8fHwxNzYzOTExMTI0fDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "running deity"
+    },
+    {
+      "id": "game-coin",
+      "description": "A gold coin for players to collect.",
+      "imageUrl": "https://images.unsplash.com/photo-1621504450181-5d356f61d307?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxnb2xkJTIwY29pbnxlbnwwfHx8fDE3NjM4NjkwNDd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "gold coin"
+    },
+    {
+      "id": "game-shield",
+      "description": "A shield power-up icon.",
+      "imageUrl": "https://images.unsplash.com/photo-1655153374072-cb826984175f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxnbG93aW5nJTIwc2hpZWxkfGVufDB8fHx8MTc2MzkyMjQxOHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "glowing shield"
+    },
+    {
+      "id": "game-slowMo",
+      "description": "A slow-motion (snail) power-up icon.",
+      "imageUrl": "https://images.unsplash.com/photo-1706848793252-42fed7e2606e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxzbmFpbCUyMGljb258ZW58MHx8fHwxNzYzOTIyNDE4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "snail icon"
+    },
+    {
+      "id": "game-doubleScore",
+      "description": "A '2x' icon for the double score power-up.",
+      "imageUrl": "https://images.unsplash.com/photo-1643044404519-c49bf2693abf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHwyeCUyMGljb258ZW58MHx8fHwxNzYzOTIyNDE4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "2x icon"
     }
   ]
 }

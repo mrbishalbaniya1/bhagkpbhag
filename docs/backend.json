@@ -172,6 +172,34 @@
             "name": {"type": "string"},
             "url": {"type": "string", "format": "uri"}
           }
+        },
+        "coin": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "url": {"type": "string", "format": "uri"}
+            }
+        },
+        "shield": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "url": {"type": "string", "format": "uri"}
+            }
+        },
+        "slowMo": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "url": {"type": "string", "format": "uri"}
+            }
+        },
+        "doubleScore": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "url": {"type": "string", "format": "uri"}
+            }
         }
       }
     }

@@ -4,8 +4,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
-import { type GameLevel, type Player, type Pipe, defaultGameLevels } from '@/lib/game-config';
-import { Loader2, Music, Music2 } from 'lucide-react';
+import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible } from '@/lib/game-config';
+import { Loader2, Music, Music2, ShieldCheck } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -22,6 +22,10 @@ interface GameAssets {
     player?: GameAsset;
     pipes?: GameAsset[];
     bgMusic?: GameAsset;
+    coin?: GameAsset;
+    shield?: GameAsset;
+    slowMo?: GameAsset;
+    doubleScore?: GameAsset;
 }
 
 export default function GamePage() {
@@ -39,7 +43,15 @@ export default function GamePage() {
     const [currentLevel, setCurrentLevel] = useState<GameLevel>(defaultGameLevels[0]);
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
+    const [coins, setCoins] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
+
+    // Power-up states
+    const [hasShield, setHasShield] = useState(false);
+    const [slowMo, setSlowMo] = useState<{active: boolean, timer: number}>({ active: false, timer: 0 });
+    const [doubleScore, setDoubleScore] = useState<{active: boolean, timer: number}>({ active: false, timer: 0 });
+    const POWERUP_DURATION = 300; // a value in frames, e.g., 300 frames is ~5 seconds at 60fps
+
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const gameLoopRef = useRef<number>();
@@ -47,12 +59,15 @@ export default function GamePage() {
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
     const pipesRef = useRef<(Pipe & { img: HTMLImageElement })[]>([]);
+    const collectiblesRef = useRef<(Collectible & { img: HTMLImageElement })[]>([]);
     const frameRef = useRef(0);
     const bgXRef = useRef(0);
 
     const bgImgRef = useRef<HTMLImageElement>();
     const pipeImgsRef = useRef<HTMLImageElement[]>([]);
     const playerImgRef = useRef<HTMLImageElement>();
+    const collectibleImgsRef = useRef<{[key: string]: HTMLImageElement}>({});
+
 
     useEffect(() => {
         if (assetsLoading) return;
@@ -61,19 +76,28 @@ export default function GamePage() {
         setHighScore(parseInt(storedHigh, 10));
 
         const placeholderImages = getPlaceholderImages();
-        const defaultBg = placeholderImages.find(p => p.id === 'game-bg');
-        const defaultPipe = placeholderImages.find(p => p.id === 'game-pipe');
-        const defaultPlayer = placeholderImages.find(p => p.id === 'game-player');
+        
+        const defaultAssets = {
+            bg: placeholderImages.find(p => p.id === 'game-bg')?.imageUrl,
+            player: placeholderImages.find(p => p.id === 'game-player')?.imageUrl,
+            pipe: placeholderImages.find(p => p.id === 'game-pipe')?.imageUrl,
+            coin: placeholderImages.find(p => p.id === 'game-coin')?.imageUrl,
+            shield: placeholderImages.find(p => p.id === 'game-shield')?.imageUrl,
+            slowMo: placeholderImages.find(p => p.id === 'game-slowMo')?.imageUrl,
+            doubleScore: placeholderImages.find(p => p.id === 'game-doubleScore')?.imageUrl,
+        }
 
-        const bgUrl = gameAssets?.bg?.url || defaultBg?.imageUrl;
-        const playerUrl = gameAssets?.player?.url || defaultPlayer?.imageUrl;
+        const bgUrl = gameAssets?.bg?.url || defaultAssets.bg;
+        const playerUrl = gameAssets?.player?.url || defaultAssets.player;
         const pipeUrls = gameAssets?.pipes && gameAssets.pipes.length > 0
             ? gameAssets.pipes.map(p => p.url)
-            : [defaultPipe?.imageUrl].filter((url): url is string => !!url);
+            : [defaultAssets.pipe].filter((url): url is string => !!url);
 
-        if (!bgUrl || !playerUrl || pipeUrls.length === 0) {
-            console.error("Some game assets could not be loaded.");
-            return;
+        const collectibleAssetUrls = {
+            coin: gameAssets?.coin?.url || defaultAssets.coin,
+            shield: gameAssets?.shield?.url || defaultAssets.shield,
+            slowMo: gameAssets?.slowMo?.url || defaultAssets.slowMo,
+            doubleScore: gameAssets?.doubleScore?.url || defaultAssets.doubleScore,
         }
 
         let isMounted = true;
@@ -81,32 +105,48 @@ export default function GamePage() {
         
         const loadImages = async () => {
             try {
-                const bgImg = new Image();
-                bgImg.src = bgUrl;
+                const imagePromises: Promise<any>[] = [];
+                const loadedImages: {[key:string]: HTMLImageElement} = {};
 
-                const playerImg = new Image();
-                playerImg.src = playerUrl;
-                
-                const pipeImgPromises = pipeUrls.map(url => {
-                    const img = new Image();
-                    img.src = url;
-                    return img.decode();
-                });
+                const addImagePromise = (url: string | undefined, ref: React.MutableRefObject<HTMLImageElement | undefined>) => {
+                    if (url) {
+                        const img = new Image();
+                        img.src = url;
+                        ref.current = img;
+                        imagePromises.push(img.decode());
+                    }
+                };
 
-                await Promise.all([
-                    bgImg.decode(),
-                    playerImg.decode(),
-                    ...pipeImgPromises
-                ]);
-
-                if (isMounted) {
-                    bgImgRef.current = bgImg;
-                    playerImgRef.current = playerImg;
-                    pipeImgsRef.current = pipeUrls.map(url => {
+                 const addMultiImagePromise = (urls: string[], ref: React.MutableRefObject<HTMLImageElement[]>) => {
+                    const imgs = urls.map(url => {
                         const img = new Image();
                         img.src = url;
                         return img;
                     });
+                    ref.current = imgs;
+                    imgs.forEach(img => imagePromises.push(img.decode()));
+                };
+                
+                const addCollectibleImagePromises = (urls: {[key: string]: string | undefined}, ref: React.MutableRefObject<{[key: string]: HTMLImageElement}>) => {
+                    for (const key in urls) {
+                        const url = urls[key];
+                        if (url) {
+                            const img = new Image();
+                            img.src = url;
+                            ref.current[key] = img;
+                            imagePromises.push(img.decode());
+                        }
+                    }
+                }
+
+                addImagePromise(bgUrl, bgImgRef);
+                addImagePromise(playerUrl, playerImgRef);
+                addMultiImagePromise(pipeUrls, pipeImgsRef);
+                addCollectibleImagePromises(collectibleAssetUrls, collectibleImgsRef);
+
+                await Promise.all(imagePromises);
+
+                if (isMounted) {
                     setImagesLoaded(true);
                 }
             } catch (error) {
@@ -127,14 +167,13 @@ export default function GamePage() {
             const defaultLevelIds = new Set(defaultGameLevels.map(l => l.id));
 
             firebaseLevels.forEach(fbLevel => {
-                if (!defaultLevelIds.has(fbLevel.id)) {
-                    combinedLevels.push(fbLevel);
-                } else {
+                const existingIndex = combinedLevels.findIndex(l => l.id === fbLevel.id);
+                if (existingIndex !== -1) {
                     // Update existing default level with remote data
-                    const index = combinedLevels.findIndex(l => l.id === fbLevel.id);
-                    if (index !== -1) {
-                        combinedLevels[index] = fbLevel;
-                    }
+                    combinedLevels[existingIndex] = fbLevel;
+                } else {
+                    // Add new custom level
+                    combinedLevels.push(fbLevel);
                 }
             });
             
@@ -180,8 +219,13 @@ export default function GamePage() {
         };
 
         pipesRef.current = [];
+        collectiblesRef.current = [];
         frameRef.current = 0;
         setScore(0);
+        setCoins(0);
+        setHasShield(false);
+        setSlowMo({ active: false, timer: 0 });
+        setDoubleScore({ active: false, timer: 0 });
     }, []);
     
     const startGame = useCallback(() => {
@@ -210,6 +254,23 @@ export default function GamePage() {
         }
     }, [gameState, currentLevel, startGame, imagesLoaded]);
 
+    const handlePowerUpTimers = useCallback(() => {
+        if (slowMo.active) {
+            setSlowMo(prev => {
+                const newTimer = prev.timer - 1;
+                if (newTimer <= 0) return { active: false, timer: 0 };
+                return { ...prev, timer: newTimer };
+            });
+        }
+        if (doubleScore.active) {
+            setDoubleScore(prev => {
+                const newTimer = prev.timer - 1;
+                if (newTimer <= 0) return { active: false, timer: 0 };
+                return { ...prev, timer: newTimer };
+            });
+        }
+    }, [slowMo.active, doubleScore.active]);
+
     const gameLoop = useCallback(() => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
@@ -218,13 +279,25 @@ export default function GamePage() {
         const dpr = window.devicePixelRatio || 1;
         const cw = canvas.width / dpr;
         const ch = canvas.height / dpr;
-        const L = currentLevel;
+        let L = { ...currentLevel };
 
+        // Handle power-up effects
+        if (slowMo.active) {
+            L.speed *= 0.5;
+            L.spawnRate *= 1.5;
+        }
+        
         playerRef.current.vel += L.gravity;
         playerRef.current.y += playerRef.current.vel;
         
         if (playerRef.current.y < 0 || playerRef.current.y + playerRef.current.h > ch) {
-            endGame();
+            if (hasShield) {
+                setHasShield(false);
+                playerRef.current.y = Math.max(0, Math.min(playerRef.current.y, ch - playerRef.current.h));
+                playerRef.current.vel = 0;
+            } else {
+                endGame();
+            }
         }
 
         const rectCol = (ax:number,ay:number,aw:number,ah:number,bx:number,by:number,bw:number,bh:number) => {
@@ -237,18 +310,40 @@ export default function GamePage() {
                 rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, 0, p.w, p.top) ||
                 rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, ch - p.bottom, p.w, p.bottom)
             ) {
-                endGame();
+                 if (hasShield) {
+                    setHasShield(false);
+                    // Instead of removing the pipe, we could make it passable for a moment
+                    p.x = -p.w; // Effectively removes the pipe from collision checks
+                } else {
+                    endGame();
+                }
             }
             if (!p.passed && p.x + p.w < playerRef.current.x) {
                 p.passed = true;
-                setScore(s => s + 1);
+                setScore(s => s + (doubleScore.active ? 2 : 1));
+            }
+        });
+        
+        collectiblesRef.current.forEach((c, i) => {
+            c.x -= L.speed;
+            if (rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, c.x, c.y, c.w, c.h)) {
+                switch(c.type) {
+                    case 'coin': setCoins(cs => cs + 1); break;
+                    case 'shield': setHasShield(true); break;
+                    case 'slowMo': setSlowMo({ active: true, timer: POWERUP_DURATION }); break;
+                    case 'doubleScore': setDoubleScore({ active: true, timer: POWERUP_DURATION }); break;
+                }
+                collectiblesRef.current.splice(i, 1);
             }
         });
 
+        handlePowerUpTimers();
+
         pipesRef.current = pipesRef.current.filter(p => p.x + p.w > -40);
+        collectiblesRef.current = collectiblesRef.current.filter(c => c.x + c.w > 0);
 
         frameRef.current++;
-        if (frameRef.current % L.spawnRate === 0) {
+        if (frameRef.current % Math.round(L.spawnRate) === 0) {
             const gap = L.gap;
             const minTop = 90;
             const maxTop = ch - gap - 120;
@@ -265,6 +360,33 @@ export default function GamePage() {
                 passed: false,
                 img: randomPipeImg,
             });
+
+            // Spawn collectibles between pipes
+            const spawnChance = Math.random();
+            if (spawnChance < 0.5) { // 50% chance to spawn something
+                 const collectibleY = topHeight + gap / 2;
+                 const collectibleSize = 30;
+                 const collectibleTypes = ['coin', 'shield', 'slowMo', 'doubleScore'];
+                 const typeChance = Math.random();
+                 let collectibleType: Collectible['type'];
+
+                if (typeChance < 0.7) collectibleType = 'coin'; // 70% chance for a coin
+                else if (typeChance < 0.85) collectibleType = 'shield'; // 15% for shield
+                else if (typeChance < 0.95) collectibleType = 'slowMo'; // 10% for slow-mo
+                else collectibleType = 'doubleScore'; // 5% for double score
+
+                const collectibleImg = collectibleImgsRef.current[collectibleType];
+                if(collectibleImg) {
+                    collectiblesRef.current.push({
+                        x: cw + pipeW / 2 + 30,
+                        y: collectibleY - collectibleSize / 2,
+                        w: collectibleSize,
+                        h: collectibleSize,
+                        type: collectibleType,
+                        img: collectibleImg,
+                    });
+                }
+            }
         }
         
         ctx.clearRect(0, 0, cw, ch);
@@ -272,7 +394,7 @@ export default function GamePage() {
         const scale = Math.max(cw / bgImgRef.current.width, ch / bgImgRef.current.height);
         const sw = bgImgRef.current.width * scale;
         const sh = bgImgRef.current.height * scale;
-        bgXRef.current -= 0.3;
+        bgXRef.current -= 0.3 * (slowMo.active ? 0.5 : 1);
         if (bgXRef.current <= -sw) bgXRef.current = 0;
         ctx.drawImage(bgImgRef.current, bgXRef.current, 0, sw, sh);
         ctx.drawImage(bgImgRef.current, bgXRef.current + sw, 0, sw, sh);
@@ -281,15 +403,38 @@ export default function GamePage() {
             ctx.drawImage(p.img, p.x, 0, p.w, p.top);
             ctx.drawImage(p.img, p.x, ch - p.bottom, p.w, p.bottom);
         });
+        
+        collectiblesRef.current.forEach(c => {
+             ctx.drawImage(c.img, c.x, c.y, c.w, c.h);
+        });
 
         ctx.save();
         ctx.translate(playerRef.current.x + playerRef.current.w / 2, playerRef.current.y + playerRef.current.h / 2);
         ctx.rotate(Math.min(playerRef.current.vel / 40, 0.4));
         ctx.drawImage(playerImgRef.current!, -playerRef.current.w / 2, -playerRef.current.h / 2, playerRef.current.w, playerRef.current.h);
         ctx.restore();
+        
+        if (hasShield) {
+            ctx.save();
+            ctx.strokeStyle = '#00FFFF';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = '#00FFFF';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(
+                playerRef.current.x + playerRef.current.w / 2,
+                playerRef.current.y + playerRef.current.h / 2,
+                Math.max(playerRef.current.w, playerRef.current.h) / 2 + 5,
+                0,
+                Math.PI * 2
+            );
+            ctx.stroke();
+            ctx.restore();
+        }
+
 
         gameLoopRef.current = requestAnimationFrame(gameLoop);
-    }, [currentLevel, endGame]);
+    }, [currentLevel, endGame, slowMo, doubleScore, hasShield, handlePowerUpTimers]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -324,7 +469,6 @@ export default function GamePage() {
         const handleInput = (e: Event) => {
             e.preventDefault();
             
-            // Don't register clicks if they are on a button or select dropdown
             if (e.target instanceof HTMLElement && (e.target.closest('button') || e.target.closest('[data-radix-collection-item]'))) {
                 return;
             }
@@ -335,7 +479,6 @@ export default function GamePage() {
             }
 
             if (gameState === 'over') {
-                // Do nothing on click/key when game is over
                 return;
             }
 
@@ -369,7 +512,6 @@ export default function GamePage() {
     }
     
     const handleRestart = () => {
-        // This function is now only called by the button click
         if (gameState === 'over') {
             resetGame();
             startGame();
@@ -398,7 +540,14 @@ export default function GamePage() {
             
             {gameState !== 'loading' && (
                 <>
-                    {user && <Link href="/admin"></Link>}
+                    <div className="absolute top-4 left-4 z-10 text-left text-foreground drop-shadow-lg">
+                        <div className="text-xl font-bold">Coins: {coins}</div>
+                        <div className="flex gap-2 mt-1">
+                          {hasShield && <ShieldCheck className="text-sky-400" />}
+                          {slowMo.active && <span className="text-blue-400 font-bold">Slow!</span>}
+                          {doubleScore.active && <span className="text-yellow-400 font-bold">x2!</span>}
+                        </div>
+                    </div>
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
                         <div className="text-3xl font-bold">{score}</div>
                         <div className="text-sm">High: {highScore}</div>
@@ -417,7 +566,8 @@ export default function GamePage() {
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80">
                     <div className="bg-card/90 p-8 rounded-xl shadow-2xl text-center border w-full max-w-sm">
                         <h2 className="text-4xl font-bold text-destructive mb-2">Game Over</h2>
-                        <p className="text-lg text-muted-foreground mb-4">Your score: <span className="font-bold text-foreground">{score}</span></p>
+                        <p className="text-lg text-muted-foreground mb-1">Your score: <span className="font-bold text-foreground">{score}</span></p>
+                        <p className="text-lg text-muted-foreground mb-4">Coins collected: <span className="font-bold text-foreground">{coins}</span></p>
                         
                         <div className="space-y-4">
                              <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id}>
@@ -448,3 +598,4 @@ export default function GamePage() {
         </main>
     );
 }
+

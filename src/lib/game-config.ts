@@ -28,6 +28,15 @@ export interface Pipe {
   passed: boolean;
 }
 
+export interface Collectible {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  type: 'coin' | 'shield' | 'slowMo' | 'doubleScore';
+}
+
+
 // Default levels to use while Firestore is loading.
 export const defaultGameLevels: GameLevel[] = [
     {
