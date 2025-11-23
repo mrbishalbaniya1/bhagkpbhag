@@ -16,7 +16,6 @@ import { Loader2 } from 'lucide-react';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const auth = useAuth();
@@ -31,16 +30,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     if (isSigningUp) {
-      if (!displayName) {
-        toast({
-            variant: 'destructive',
-            title: 'Display Name Required',
-            description: 'Please enter a display name to create an account.',
-        });
-        setIsLoading(false);
-        return;
-      }
-      await initiateEmailSignIn(auth, email, password, toast, router, { firestore, displayName });
+      await initiateEmailSignIn(auth, email, password, toast, router, { firestore });
     } else {
       await initiateEmailSignIn(auth, email, password, toast, router);
     }
@@ -85,26 +75,12 @@ export default function LoginPage() {
           <CardTitle className="text-2xl">{isSigningUp ? 'Create an Account' : 'Admin Login'}</CardTitle>
           <CardDescription>
             {isSigningUp 
-              ? 'Enter your details to create a new account.' 
+              ? 'Enter your email and password to create an account. A unique username will be generated for you.' 
               : "Enter your email below to login. New users will be prompted to sign up."}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleAuthAction}>
           <CardContent className="grid gap-4">
-            {isSigningUp && (
-               <div className="grid gap-2">
-                  <Label htmlFor="displayName">Display Name</Label>
-                  <Input
-                    id="displayName"
-                    type="text"
-                    placeholder="Your Name"
-                    required
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    disabled={isLoading}
-                  />
-               </div>
-            )}
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input

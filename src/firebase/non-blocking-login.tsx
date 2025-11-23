@@ -9,13 +9,13 @@ import {
   signInWithPopup,
   UserCredential,
 } from 'firebase/auth';
-import { Firestore, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { Firestore, doc, setDoc, serverTimestamp, getDoc, collection, getDocs } from 'firebase/firestore';
 import type { useToast } from '@/hooks/use-toast';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import { generateUsername } from '@/ai/flows/generate-username-flow';
 
 interface SignUpOptions {
     firestore: Firestore;
-    displayName: string;
 }
 
 /** Initiate anonymous sign-in (non-blocking). */
@@ -23,14 +23,26 @@ export function initiateAnonymousSignIn(authInstance: Auth): void {
   signInAnonymously(authInstance);
 }
 
+/** Fetches existing usernames and generates a new unique one. */
+async function getUniqueUsername(firestore: Firestore): Promise<string> {
+    const usersCollection = collection(firestore, 'users');
+    const usersSnapshot = await getDocs(usersCollection);
+    const existingUsernames = usersSnapshot.docs.map(doc => doc.data().displayName);
+    const newUsername = await generateUsername({ usedUsernames: existingUsernames });
+    return newUsername.username;
+}
+
+
 /** Initiate email/password sign-up and create user profile (non-blocking). */
 export async function initiateEmailSignUp(authInstance: Auth, email: string, password: string, options: SignUpOptions): Promise<UserCredential> {
   const userCredential = await createUserWithEmailAndPassword(authInstance, email, password);
   const user = userCredential.user;
   const userProfileRef = doc(options.firestore, 'users', user.uid);
   
+  const uniqueUsername = await getUniqueUsername(options.firestore);
+
   const userProfileData = {
-      displayName: options.displayName,
+      displayName: uniqueUsername,
       email: user.email,
       createdAt: serverTimestamp(),
       highScore: 0,
@@ -107,8 +119,9 @@ export async function initiateGoogleSignIn(
     const docSnap = await getDoc(userProfileRef);
 
     if (!docSnap.exists()) {
+      const uniqueUsername = await getUniqueUsername(firestore);
       const userProfileData = {
-        displayName: user.displayName || 'Anonymous',
+        displayName: uniqueUsername,
         email: user.email,
         createdAt: serverTimestamp(),
         highScore: 0,
