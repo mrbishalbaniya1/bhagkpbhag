@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -258,7 +259,11 @@ export default function GamePage() {
     }
 
     if (levelsLoading || gameState === 'loading' || !currentLevel) {
-        return null;
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
     }
 
     return (
