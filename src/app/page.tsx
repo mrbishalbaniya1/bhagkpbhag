@@ -112,7 +112,7 @@ export default function GamePage() {
     const collectibleImgsRef = useRef<{[key: string]: HTMLImageElement}>({});
 
     useEffect(() => {
-        if (user && userProfile) {
+        if (user && !user.isAnonymous && userProfile) {
             setHighScore(userProfile.highScore || 0);
         } else if (typeof window !== 'undefined') {
             const storedHigh = localStorage.getItem("BhagKpBhag_high") || "0";
@@ -304,7 +304,7 @@ export default function GamePage() {
     }, [resetGame, currentLevel, imagesLoaded, gameMode]);
 
     const saveScoreToLeaderboard = useCallback(() => {
-        if (!firestore || !user || gameMode === 'zen' || score === 0) return;
+        if (!firestore || !user || user.isAnonymous || gameMode === 'zen' || score === 0) return;
 
         const leaderboardCollection = collection(firestore, 'leaderboard');
         const scoreData = {
@@ -343,7 +343,7 @@ export default function GamePage() {
         if (gameMode !== 'zen') {
              if (score > highScore) {
                 setHighScore(score);
-                if (user && firestore && userProfileRef) {
+                if (user && !user.isAnonymous && firestore && userProfileRef) {
                     updateDocumentNonBlocking(userProfileRef, { highScore: score });
                 } else {
                     localStorage.setItem("BhagKpBhag_high", score.toString());
@@ -933,6 +933,8 @@ export default function GamePage() {
     );
 }
 
+
+    
 
     
 
