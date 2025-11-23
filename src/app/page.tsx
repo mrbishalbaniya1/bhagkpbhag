@@ -145,6 +145,31 @@ export default function GamePage() {
     }, []);
 
     useEffect(() => {
+        const handleResize = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+            if (gameState !== 'playing') {
+                resetGame();
+            }
+        };
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [gameState, resetGame]);
+    
+    useEffect(() => {
+        if(imagesLoaded && (gameState === 'loading' || gameState === 'ready')){
+            resetGame();
+            setGameState('ready');
+        }
+    }, [imagesLoaded, gameState, resetGame]);
+
+    useEffect(() => {
         if (user && !user.isAnonymous && userProfile) {
             setHighScore(userProfile.highScore || 0);
         } else if (typeof window !== 'undefined') {
@@ -276,32 +301,6 @@ export default function GamePage() {
         }
     }, [levelsLoading, assetsLoading]);
 
-    useEffect(() => {
-        if(imagesLoaded && (gameState === 'loading' || gameState === 'ready')){
-            resetGame();
-            setGameState('ready');
-        }
-    }, [imagesLoaded, gameState, resetGame]);
-
-    const startGame = useCallback(() => {
-        if (!currentLevel || !imagesLoaded) return;
-        setGameState('playing');
-        audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
-
-        if (gameMode === 'timeAttack') {
-            timeAttackIntervalRef.current = setInterval(() => {
-                setTimeLeft(prev => {
-                    if (prev <= 1) {
-                        clearInterval(timeAttackIntervalRef.current);
-                        endGame();
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-        }
-    }, [currentLevel, imagesLoaded, gameMode]);
-
     const saveScoreToLeaderboard = useCallback(() => {
         if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || score === 0) return;
 
@@ -344,7 +343,7 @@ export default function GamePage() {
                 setHighScore(score);
                 if (user && !user.isAnonymous && firestore && userProfileRef) {
                     updateDocumentNonBlocking(userProfileRef, { highScore: score });
-                } else {
+                } else if (!user?.isAnonymous) {
                     localStorage.setItem("BhagKpBhag_high", score.toString());
                 }
             }
@@ -375,6 +374,26 @@ export default function GamePage() {
             vy: -2,
         });
     }, []);
+
+    const startGame = useCallback(() => {
+        if (!currentLevel || !imagesLoaded) return;
+        resetGame();
+        setGameState('playing');
+        audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+
+        if (gameMode === 'timeAttack') {
+            timeAttackIntervalRef.current = setInterval(() => {
+                setTimeLeft(prev => {
+                    if (prev <= 1) {
+                        clearInterval(timeAttackIntervalRef.current);
+                        endGame();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+    }, [currentLevel, imagesLoaded, gameMode, resetGame, endGame]);
 
     const jump = useCallback(() => {
         if (!currentLevel) return;
@@ -661,24 +680,6 @@ export default function GamePage() {
     }, [currentLevel, endGame, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText]);
 
     useEffect(() => {
-        const handleResize = () => {
-            const canvas = canvasRef.current;
-            if (!canvas) return;
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = window.innerWidth * dpr;
-            canvas.height = window.innerHeight * dpr;
-            const ctx = canvas.getContext('2d');
-            ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
-            if (gameState !== 'playing') {
-                resetGame();
-            }
-        };
-        handleResize();
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [gameState, resetGame]);
-
-    useEffect(() => {
         if (gameState === 'playing') {
             gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
@@ -758,9 +759,16 @@ export default function GamePage() {
     };
 
     const handleRestart = () => {
-        resetGame();
+        setGameState('ready');
         startGame();
     };
+
+// This is wrong, it causes an infinite loop
+//  const handleRestart = () => {
+//      resetGame();
+//      startGame();
+//  };
+
 
     const toggleMute = () => {
         setIsMuted(!isMuted);
@@ -871,9 +879,14 @@ export default function GamePage() {
                                         <span>{isMuted ? 'Unmute' : 'Mute'}</span>
                                     </Button>
                                     {user && !user.isAnonymous && (
-                                        <Button variant="ghost" size="lg" onClick={() => auth?.signOut()} className="w-full transition-transform duration-200 hover:scale-105">
-                                            Sign Out
-                                        </Button>
+                                        <>
+                                            <Button variant="ghost" size="lg" onClick={() => auth?.signOut()} className="w-full transition-transform duration-200 hover:scale-105">
+                                                Sign Out
+                                            </Button>
+                                             <Button variant="secondary" size="lg" asChild className="w-full transition-transform duration-200 hover:scale-105">
+                                                <Link href="/account">My Account</Link>
+                                            </Button>
+                                        </>
                                     )}
                                 </div>
                              </CardContent>
@@ -929,4 +942,3 @@ export default function GamePage() {
         </main>
     );
 }
-
