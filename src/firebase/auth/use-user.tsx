@@ -1,9 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useFirebase, useMemoFirebase } from '@/firebase/provider';
+import { useFirebase } from '@/firebase/provider';
 import { useDoc } from '@/firebase';
 import { useEffect, useState } from 'react';
 import { doc } from 'firebase/firestore';
+import { useMemoFirebase } from '@/firebase/provider';
 
 export interface UserHookResult {
   user: any | null;
