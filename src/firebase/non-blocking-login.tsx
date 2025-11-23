@@ -19,7 +19,12 @@ export function initiateAnonymousSignIn(authInstance: Auth): void {
 /** Initiate email/password sign-up (non-blocking). */
 export function initiateEmailSignUp(authInstance: Auth, email: string, password: string): void {
   // CRITICAL: Call createUserWithEmailAndPassword directly. Do NOT use 'await createUserWithEmailAndPassword(...)'.
-  createUserWithEmailAndPassword(authInstance, email, password);
+  createUserWithEmailAndPassword(authInstance, email, password)
+    .catch((error) => {
+        // This catch block will handle errors during sign-up, like if the email
+        // is already in use after a race condition, or password is too weak.
+        console.error("Sign-up error:", error);
+    });
   // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
 }
 
@@ -28,13 +33,15 @@ export function initiateEmailSignIn(authInstance: Auth, email: string, password:
   signInWithEmailAndPassword(authInstance, email, password)
     .catch((error) => {
         // If the user doesn't exist, create a new account.
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        if (error.code === 'auth/user-not-found') {
             initiateEmailSignUp(authInstance, email, password);
+        } else if (error.code === 'auth/invalid-credential') {
+             // User exists, but password was wrong. Do nothing, let the user try again.
+             // You could show a toast here if you have a toast system.
+             console.error("Invalid credentials.");
         } else {
             // For other errors, you might want to handle them differently
-            // For now, we'll just log them. In a real app, you'd show a toast.
             console.error("Sign-in error:", error);
-            // Optionally re-throw or handle as a global error
         }
     });
 }
