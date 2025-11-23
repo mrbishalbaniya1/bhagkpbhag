@@ -32,14 +32,15 @@ export const useUser = (): UserHookResult => {
   }, [adminRoleDoc]);
 
   useEffect(() => {
-     // This effect runs only on the client, after hydration.
-     // This prevents a server/client mismatch for the initial render.
-     if (typeof window !== 'undefined' && window.location.pathname === '/login') {
-      return; // Do not run redirect logic on the login page
-     }
-
-     if (!isUserLoading && user) {
-      // If user is logged in, redirect from other pages if necessary
+     // This effect runs only on the client, after hydration, to handle redirects.
+     if (typeof window !== 'undefined' && !isUserLoading) {
+      if (user && window.location.pathname === '/login') {
+        // If user is logged in and on the login page, redirect them to home.
+        router.push('/');
+      } else if (!user && window.location.pathname.startsWith('/admin')) {
+        // If user is not logged in and trying to access admin, send to login.
+        router.push('/login');
+      }
     }
   }, [user, isUserLoading, router]);
 
