@@ -34,12 +34,9 @@ export const useUser = (): UserHookResult => {
   }, [adminRoleDoc]);
 
   useEffect(() => {
-    // This effect runs only on the client, after hydration, to handle redirects.
-    if (typeof window !== 'undefined' && !isUserLoading) {
-      if (user && pathname === '/login') {
-        // If user is logged in and on the login page, redirect them to home.
-        router.push('/');
-      } else if (!user && pathname.startsWith('/admin')) {
+    // This effect handles redirects but EXCLUDES the login page to prevent hydration errors.
+    if (typeof window !== 'undefined' && !isUserLoading && pathname !== '/login') {
+      if (!user && pathname.startsWith('/admin')) {
         // If user is not logged in and trying to access admin, send to login.
         router.push('/login');
       }
