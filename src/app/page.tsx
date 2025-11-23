@@ -85,17 +85,17 @@ export default function GamePage() {
 
     // Effect to set the initial game level once data is loaded
     useEffect(() => {
-        if (!levelsLoading && gameLevels && gameLevels.length > 0 && !currentLevel) {
+        if (!levelsLoading && gameLevels && gameLevels.length > 0) {
             setCurrentLevel(gameLevels.find(l => l.name.toLowerCase() === 'easy') || gameLevels[0]);
         }
-    }, [gameLevels, levelsLoading, currentLevel]);
+    }, [gameLevels, levelsLoading]);
 
     // Effect to transition from 'loading' to 'ready' state
     useEffect(() => {
-        if (gameState === 'loading' && imagesLoaded && currentLevel) {
+        if (imagesLoaded && currentLevel) {
             setGameState('ready');
         }
-    }, [imagesLoaded, currentLevel, gameState]);
+    }, [imagesLoaded, currentLevel]);
 
 
     const resetGame = useCallback(() => {
