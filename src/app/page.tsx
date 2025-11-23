@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
-import { type GameLevel, type Player, type Pipe } from '@/lib/game-config';
+import { type GameLevel, type Player, type Pipe, defaultGameLevels } from '@/lib/game-config';
 import { Loader2 } from 'lucide-react';
 import { useUser, useFirestore, useCollection } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -16,11 +16,13 @@ export default function GamePage() {
     const { user } = useUser();
     const firestore = useFirestore();
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
-    const { data: gameLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
+    // Start with default levels, then get real ones from firebase.
+    const { data: firebaseLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
 
     const [imagesLoaded, setImagesLoaded] = useState(false);
     const [gameState, setGameState] = useState<'loading' | 'ready' | 'playing' | 'over'>('loading');
-    const [currentLevel, setCurrentLevel] = useState<GameLevel | null>(null);
+    const [gameLevels, setGameLevels] = useState<GameLevel[]>(defaultGameLevels);
+    const [currentLevel, setCurrentLevel] = useState<GameLevel>(defaultGameLevels[0]);
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
 
@@ -83,19 +85,19 @@ export default function GamePage() {
         };
     }, []);
 
-    // Effect to set the initial game level once data is loaded from Firestore
+    // When firebase levels load, update the levels state
     useEffect(() => {
-        if (!levelsLoading && gameLevels && gameLevels.length > 0 && !currentLevel) {
-            setCurrentLevel(gameLevels.find(l => l.name.toLowerCase() === 'easy') || gameLevels[0]);
+        if (firebaseLevels && firebaseLevels.length > 0) {
+            setGameLevels(firebaseLevels);
         }
-    }, [gameLevels, levelsLoading, currentLevel]);
+    }, [firebaseLevels]);
 
-    // Effect to transition from 'loading' to 'ready' state when both images and levels are loaded
+    // Effect to transition from 'loading' to 'ready' state
     useEffect(() => {
-        if (gameState === 'loading' && imagesLoaded && currentLevel) {
+        if (imagesLoaded) {
             setGameState('ready');
         }
-    }, [imagesLoaded, currentLevel, gameState]);
+    }, [imagesLoaded]);
 
 
     const resetGame = useCallback(() => {
@@ -334,5 +336,7 @@ export default function GamePage() {
         </main>
     );
 }
+
+    
 
     

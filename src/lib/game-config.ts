@@ -28,4 +28,35 @@ export interface Pipe {
   passed: boolean;
 }
 
+// Default levels to use while Firestore is loading.
+export const defaultGameLevels: GameLevel[] = [
+    {
+        id: 'easy',
+        name: 'Easy',
+        gravity: 0.3,
+        lift: -6,
+        gap: 240,
+        speed: 2.5,
+        spawnRate: 90,
+    },
+    {
+        id: 'normal',
+        name: 'Normal',
+        gravity: 0.4,
+        lift: -7,
+        gap: 220,
+        speed: 3.5,
+        spawnRate: 80,
+    },
+    {
+        id: 'hard',
+        name: 'Hard',
+        gravity: 0.5,
+        lift: -8,
+        gap: 200,
+        speed: 4.5,
+        spawnRate: 70,
+    },
+];
+
     
