@@ -761,7 +761,6 @@ export default function GamePage() {
 
     const handleRestart = () => {
         if (gameState === 'over') {
-            resetGame();
             startGame();
         }
     };
