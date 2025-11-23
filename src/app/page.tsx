@@ -3,12 +3,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
-import { levelSettings, type Level, type Player, type Pipe } from '@/lib/game-config';
+import { type Level, type Player, type Pipe } from '@/lib/game-config';
 import { Loader2 } from 'lucide-react';
+import { useUser, useFirestore, useCollection } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import Link from 'next/link';
+import { useMemoFirebase } from '@/firebase/provider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function GamePage() {
+    const { user } = useUser();
+    const firestore = useFirestore();
+    const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
+    const { data: gameLevels, isLoading: levelsLoading } = useCollection<any>(gameLevelsRef);
+
     const [gameState, setGameState] = useState<'loading' | 'ready' | 'playing' | 'over'>('loading');
-    const [level, setLevel] = useState<Level>('easy');
+    const [currentLevel, setCurrentLevel] = useState<any | null>(null);
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
 
@@ -23,6 +33,12 @@ export default function GamePage() {
     const bgImgRef = useRef<HTMLImageElement>();
     const pipeImgRef = useRef<HTMLImageElement>();
     const playerImgRef = useRef<HTMLImageElement>();
+
+    useEffect(() => {
+        if (gameLevels && gameLevels.length > 0 && !currentLevel) {
+            setCurrentLevel(gameLevels.find(l => l.name === 'easy') || gameLevels[0]);
+        }
+    }, [gameLevels, currentLevel]);
 
     useEffect(() => {
         const storedHigh = localStorage.getItem("runKrishnaRun_high") || "0";
@@ -85,9 +101,10 @@ export default function GamePage() {
     }, []);
     
     const startGame = useCallback(() => {
+        if (!currentLevel) return;
         resetGame();
         setGameState('playing');
-    }, [resetGame]);
+    }, [resetGame, currentLevel]);
 
     const endGame = useCallback(() => {
         setGameState('over');
@@ -98,23 +115,24 @@ export default function GamePage() {
     }, [score, highScore]);
     
     const jump = useCallback(() => {
+        if (!currentLevel) return;
         if (gameState === 'playing') {
-            playerRef.current.vel = levelSettings[level].lift;
+            playerRef.current.vel = currentLevel.lift;
         } else if (gameState === 'ready') {
             startGame();
-            playerRef.current.vel = levelSettings[level].lift;
+            playerRef.current.vel = currentLevel.lift;
         }
-    }, [gameState, level, startGame]);
+    }, [gameState, currentLevel, startGame]);
 
     const gameLoop = useCallback(() => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx || !bgImgRef.current || !pipeImgRef.current || !playerImgRef.current) return;
+        if (!canvas || !ctx || !bgImgRef.current || !pipeImgRef.current || !playerImgRef.current || !currentLevel) return;
         
         const dpr = window.devicePixelRatio || 1;
         const cw = canvas.width / dpr;
         const ch = canvas.height / dpr;
-        const L = levelSettings[level];
+        const L = currentLevel;
 
         // Update logic
         playerRef.current.vel += L.gravity;
@@ -185,7 +203,7 @@ export default function GamePage() {
         ctx.restore();
 
         gameLoopRef.current = requestAnimationFrame(gameLoop);
-    }, [level, endGame]);
+    }, [currentLevel, endGame]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -229,9 +247,23 @@ export default function GamePage() {
         };
     }, [jump]);
 
-    const handleLevelChange = (newLevel: Level) => {
-        setLevel(newLevel);
-        startGame();
+    const handleLevelChange = (levelId: string) => {
+        const newLevel = gameLevels?.find(l => l.id === levelId);
+        if (newLevel) {
+            setCurrentLevel(newLevel);
+            if(gameState === 'playing' || gameState === 'over') {
+               startGame();
+            }
+        }
+    }
+
+    if (levelsLoading || gameState === 'loading' || !currentLevel) {
+        return (
+             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 text-foreground">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                <p className="text-lg font-semibold">Loading Game...</p>
+            </div>
+        )
     }
 
     return (
@@ -240,30 +272,26 @@ export default function GamePage() {
             
             {gameState !== 'loading' && (
                 <>
-                    <div className="absolute top-4 left-4 z-10 flex gap-2">
-                        {(['easy', 'normal', 'hard'] as Level[]).map(l => (
-                            <Button 
-                                key={l}
-                                variant={level === l ? 'default' : 'secondary'}
-                                className={`capitalize transition-all duration-300 ${level === l ? 'ring-2 ring-primary-foreground' : ''}`}
-                                onClick={() => handleLevelChange(l)}
-                            >
-                                {l}
-                            </Button>
-                        ))}
+                    <div className="absolute top-4 left-4 z-10 flex gap-2 items-center">
+                         <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id}>
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Select level" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {gameLevels?.map(l => (
+                                    <SelectItem key={l.id} value={l.id}>
+                                        <span className="capitalize">{l.name}</span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {user && <Link href="/admin"><Button variant="secondary">Admin</Button></Link>}
                     </div>
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
                         <div className="text-3xl font-bold">{score}</div>
                         <div className="text-sm">High: {highScore}</div>
                     </div>
                 </>
-            )}
-
-            {gameState === 'loading' && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 text-foreground">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="text-lg font-semibold">Loading Game...</p>
-                </div>
             )}
             
             {gameState === 'ready' && (
@@ -287,3 +315,4 @@ export default function GamePage() {
         </main>
     );
 }
+
