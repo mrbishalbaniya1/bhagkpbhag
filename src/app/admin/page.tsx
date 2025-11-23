@@ -117,8 +117,7 @@ const AdminPageContent: React.FC = () => {
             toast({ variant: 'destructive', title: 'Upload Error', description: error.message || `Could not upload ${assetId}.` });
         } finally {
             setUploadingStates(prev => ({ ...prev, [assetId]: false }));
-            // Clear the specific file input
-            const input = document.getElementById(`${assetId}File`) as HTMLInputElement;
+            const input = e.target as HTMLInputElement;
             if (input) input.value = '';
         }
     };
@@ -170,7 +169,6 @@ const AdminPageContent: React.FC = () => {
     }
     
     if (!user) {
-        // This is a fallback, the useEffect above should handle redirection.
         return null;
     }
 
