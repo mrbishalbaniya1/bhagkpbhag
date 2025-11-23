@@ -16,6 +16,7 @@
  * - /game_levels/{gameLevelId}: Contains game configuration data, which is
  *   publicly readable by all users but can only be managed by administrators.
  * - /settings/admin: A singleton document for global app settings, only writable by admins.
+ * - /settings/game_assets: A singleton for custom game image URLs. Writable by admins, readable by all.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -120,6 +121,17 @@ service cloud.firestore {
      */
     match /settings/admin {
         allow read: if isSignedIn();
+        allow write: if isAdmin();
+    }
+
+    /**
+     * @description Controls access to the custom game assets.
+     * @path /settings/game_assets
+     * @allow (read) Any user can read the asset URLs.
+     * @allow (write) Only admins can change the asset URLs.
+     */
+    match /settings/game_assets {
+        allow read: if true;
         allow write: if isAdmin();
     }
   }

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useFirestore, useUser, useCollection } from '@/firebase';
+import { useAuth, useFirestore, useUser, useCollection, useDoc } from '@/firebase';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { collection, doc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,8 +16,14 @@ import { GameLevel } from '@/lib/game-config';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/provider';
+import Image from 'next/image';
 
 type GameLevelData = Omit<GameLevel, 'id'>;
+
+interface GameAsset {
+    name: string;
+    url: string;
+}
 
 const AdminPageContent: React.FC = () => {
     const { user, isUserLoading } = useUser();
@@ -29,9 +36,17 @@ const AdminPageContent: React.FC = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingLevel, setEditingLevel] = useState<GameLevel | null>(null);
 
+    const [bgFile, setBgFile] = useState<File | null>(null);
+    const [pipeFile, setPipeFile] = useState<File | null>(null);
+    const [playerFile, setPlayerFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
     const { data: gameLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
-    
+
+    const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
+    const { data: gameAssets, isLoading: assetsLoading } = useDoc<{bg: GameAsset, pipe: GameAsset, player: GameAsset}>(gameAssetsRef);
+
     const [formData, setFormData] = useState<GameLevelData>({
         name: '',
         gravity: 0,
@@ -46,7 +61,6 @@ const AdminPageContent: React.FC = () => {
             router.push('/login');
         }
     }, [user, isUserLoading, router]);
-
 
     useEffect(() => {
         if (editingLevel) {
@@ -73,6 +87,58 @@ const AdminPageContent: React.FC = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: name === 'name' ? value : Number(value) }));
+    };
+
+    const handleFileChange = (setter: React.Dispatch<React.SetStateAction<File | null>>) => (e: ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setter(e.target.files[0]);
+        }
+    };
+
+    const handleAssetUpload = async () => {
+        if (!firestore) return;
+        const storage = getStorage();
+        setIsUploading(true);
+        toast({ title: 'Uploading...', description: 'Please wait while assets are being uploaded.' });
+    
+        try {
+            const uploadPromises = [
+                { file: bgFile, id: 'bg' },
+                { file: pipeFile, id: 'pipe' },
+                { file: playerFile, id: 'player' }
+            ].filter(item => item.file).map(async ({ file, id }) => {
+                if(!file) return null;
+                const storageRef = ref(storage, `game_assets/${id}_${Date.now()}_${file.name}`);
+                await uploadBytes(storageRef, file);
+                const url = await getDownloadURL(storageRef);
+                return { [id]: { name: file.name, url } };
+            });
+    
+            const results = await Promise.all(uploadPromises);
+            const updates = results.reduce((acc, res) => ({ ...acc, ...res }), {});
+            
+            if (Object.keys(updates).length > 0) {
+                if (!gameAssetsRef) return;
+                setDocumentNonBlocking(gameAssetsRef, updates, { merge: true });
+                toast({ title: 'Success', description: 'Game assets updated successfully.' });
+            } else {
+                toast({ title: 'No files selected', description: 'Please select at least one file to upload.' });
+            }
+    
+            // Clear file inputs
+            setBgFile(null);
+            setPipeFile(null);
+            setPlayerFile(null);
+            // Also reset the file input elements themselves
+            (document.getElementById('bgFile') as HTMLInputElement).value = '';
+            (document.getElementById('pipeFile') as HTMLInputElement).value = '';
+            (document.getElementById('playerFile') as HTMLInputElement).value = '';
+        } catch (error: any) {
+            console.error("Asset upload error:", error);
+            toast({ variant: 'destructive', title: 'Upload Error', description: error.message || 'Could not upload assets.' });
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -113,7 +179,7 @@ const AdminPageContent: React.FC = () => {
         toast({ title: 'Success', description: 'Game level deleted.' });
     };
 
-    if (isUserLoading || levelsLoading) {
+    if (isUserLoading || levelsLoading || assetsLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -126,13 +192,47 @@ const AdminPageContent: React.FC = () => {
         return null;
     }
 
-
     return (
         <div className="container mx-auto p-4 md:p-8">
             <header className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold">Admin Panel</h1>
                 <Button onClick={() => auth?.signOut()}>Sign Out</Button>
             </header>
+
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>Game Assets</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="grid md:grid-cols-3 gap-6">
+                        {gameAssets && ['bg', 'pipe', 'player'].map(assetKey => (
+                            <div key={assetKey} className="space-y-2">
+                                <Label className="capitalize">{assetKey} Image</Label>
+                                {gameAssets[assetKey as keyof typeof gameAssets]?.url ? (
+                                    <Image src={gameAssets[assetKey as keyof typeof gameAssets].url} alt={`Current ${assetKey}`} width={150} height={100} className="rounded-md border object-cover" />
+                                ) : <p className="text-sm text-muted-foreground">No custom image set.</p>}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-6">
+                        <div>
+                            <Label htmlFor="bgFile">Background Image</Label>
+                            <Input id="bgFile" type="file" accept="image/*" onChange={handleFileChange(setBgFile)} />
+                        </div>
+                        <div>
+                            <Label htmlFor="pipeFile">Pipe Image</Label>
+                            <Input id="pipeFile" type="file" accept="image/*" onChange={handleFileChange(setPipeFile)} />
+                        </div>
+                        <div>
+                            <Label htmlFor="playerFile">Player Image</Label>
+                            <Input id="playerFile" type="file" accept="image/*" onChange={handleFileChange(setPlayerFile)} />
+                        </div>
+                    </div>
+                    <Button onClick={handleAssetUpload} disabled={isUploading}>
+                        {isUploading ? <Loader2 className="animate-spin" /> : 'Upload Selected Assets'}
+                    </Button>
+                </CardContent>
+            </Card>
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
@@ -204,12 +304,8 @@ const AdminPageContent: React.FC = () => {
     );
 };
 
-// This wrapper component is necessary to avoid issues with Next.js's new `searchParams` handling.
-// The page itself can't be a client component if it receives searchParams, but the content can.
 const AdminPage = () => {
     return <AdminPageContent />;
 }
 
 export default AdminPage;
-
-    

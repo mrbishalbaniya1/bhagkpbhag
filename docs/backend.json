@@ -135,6 +135,35 @@
           "description": "A global welcome message for all users."
         }
       }
+    },
+    "GameAssets": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GameAssets",
+      "type": "object",
+      "description": "Stores URLs for custom game assets uploaded by an admin.",
+      "properties": {
+        "bg": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "url": {"type": "string", "format": "uri"}
+          }
+        },
+        "pipe": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "url": {"type": "string", "format": "uri"}
+          }
+        },
+        "player": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "url": {"type": "string", "format": "uri"}
+          }
+        }
+      }
     }
   },
   "auth": {
@@ -227,6 +256,17 @@
           },
           "description": "Singleton document to store global admin settings.",
           "params": []
+        }
+      },
+      {
+        "path": "/settings/game_assets",
+        "definition": {
+            "entityName": "GameAssets",
+            "schema": {
+                "$ref": "#/backend/entities/GameAssets"
+            },
+            "description": "Singleton document for storing URLs of custom uploaded game assets.",
+            "params": []
         }
       }
     ]

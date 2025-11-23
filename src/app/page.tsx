@@ -6,18 +6,25 @@ import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels } from '@/lib/game-config';
 import { Loader2 } from 'lucide-react';
-import { useUser, useFirestore, useCollection } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface GameAsset {
+    name: string;
+    url: string;
+}
 
 export default function GamePage() {
     const { user } = useUser();
     const firestore = useFirestore();
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
-    // Start with default levels, then get real ones from firebase.
     const { data: firebaseLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
+
+    const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
+    const { data: gameAssets, isLoading: assetsLoading } = useDoc<{bg: GameAsset, pipe: GameAsset, player: GameAsset}>(gameAssetsRef);
 
     const [imagesLoaded, setImagesLoaded] = useState(false);
     const [gameState, setGameState] = useState<'loading' | 'ready' | 'playing' | 'over'>('loading');
@@ -38,29 +45,35 @@ export default function GamePage() {
     const pipeImgRef = useRef<HTMLImageElement>();
     const playerImgRef = useRef<HTMLImageElement>();
 
-    // Effect to load all game images
     useEffect(() => {
+        if (assetsLoading) return; // Wait until we know if there are custom assets or not.
+
         const storedHigh = typeof window !== 'undefined' ? localStorage.getItem("runKrishnaRun_high") || "0" : "0";
         setHighScore(parseInt(storedHigh, 10));
 
         const placeholderImages = getPlaceholderImages();
-        const bg = placeholderImages.find(p => p.id === 'game-bg');
-        const pipe = placeholderImages.find(p => p.id === 'game-pipe');
-        const player = placeholderImages.find(p => p.id === 'game-player');
+        const defaultBg = placeholderImages.find(p => p.id === 'game-bg');
+        const defaultPipe = placeholderImages.find(p => p.id === 'game-pipe');
+        const defaultPlayer = placeholderImages.find(p => p.id === 'game-player');
 
-        if (!bg || !pipe || !player) {
-            console.error("Game assets not found in placeholder images.");
+        const bgUrl = gameAssets?.bg?.url || defaultBg?.imageUrl;
+        const pipeUrl = gameAssets?.pipe?.url || defaultPipe?.imageUrl;
+        const playerUrl = gameAssets?.player?.url || defaultPlayer?.imageUrl;
+
+        if (!bgUrl || !pipeUrl || !playerUrl) {
+            console.error("Game assets could not be loaded.");
             return;
         }
 
         let isMounted = true;
+        setImagesLoaded(false); // Reset loading state when assets change
         const loadImages = async () => {
             const bgImg = new Image();
-            bgImg.src = bg.imageUrl;
+            bgImg.src = bgUrl;
             const pipeImg = new Image();
-            pipeImg.src = pipe.imageUrl;
+            pipeImg.src = pipeUrl;
             const playerImg = new Image();
-            playerImg.src = player.imageUrl;
+            playerImg.src = playerUrl;
             
             try {
                 await Promise.all([
@@ -83,20 +96,33 @@ export default function GamePage() {
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [gameAssets, assetsLoading]);
 
-    // When firebase levels load, update the levels state
     useEffect(() => {
         if (firebaseLevels && firebaseLevels.length > 0) {
             setGameLevels(firebaseLevels);
+            // If current level is a default one, check if a remote one with same ID exists
+            const remoteLevel = firebaseLevels.find(l => l.id === currentLevel.id);
+            if (remoteLevel) {
+                setCurrentLevel(remoteLevel);
+            }
         }
-    }, [firebaseLevels]);
+    }, [firebaseLevels, currentLevel.id]);
 
-    // Effect to transition from 'loading' to 'ready' state
     useEffect(() => {
-        if (imagesLoaded) {
+        if (!levelsLoading && !assetsLoading) {
+            setGameState('ready');
+        } else {
+            setGameState('loading');
+        }
+    }, [levelsLoading, assetsLoading]);
+
+    useEffect(() => {
+        if(imagesLoaded && (gameState === 'loading' || gameState === 'ready')){
+            resetGame();
             setGameState('ready');
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [imagesLoaded]);
 
 
@@ -122,10 +148,10 @@ export default function GamePage() {
     }, []);
     
     const startGame = useCallback(() => {
-        if (!currentLevel) return;
+        if (!currentLevel || !imagesLoaded) return;
         resetGame();
         setGameState('playing');
-    }, [resetGame, currentLevel]);
+    }, [resetGame, currentLevel, imagesLoaded]);
 
     const endGame = useCallback(() => {
         setGameState('over');
@@ -139,11 +165,11 @@ export default function GamePage() {
         if (!currentLevel) return;
         if (gameState === 'playing') {
             playerRef.current.vel = currentLevel.lift;
-        } else if (gameState === 'ready' || gameState === 'over') {
+        } else if ((gameState === 'ready' || gameState === 'over') && imagesLoaded) {
             startGame();
             playerRef.current.vel = currentLevel.lift;
         }
-    }, [gameState, currentLevel, startGame]);
+    }, [gameState, currentLevel, startGame, imagesLoaded]);
 
     const gameLoop = useCallback(() => {
         const canvas = canvasRef.current;
@@ -155,7 +181,6 @@ export default function GamePage() {
         const ch = canvas.height / dpr;
         const L = currentLevel;
 
-        // Update logic
         playerRef.current.vel += L.gravity;
         playerRef.current.y += playerRef.current.vel;
         
@@ -201,7 +226,6 @@ export default function GamePage() {
             });
         }
         
-        // Drawing logic
         ctx.clearRect(0, 0, cw, ch);
         
         const scale = Math.max(cw / bgImgRef.current.width, ch / bgImgRef.current.height);
@@ -235,11 +259,14 @@ export default function GamePage() {
             canvas.height = window.innerHeight * dpr;
             const ctx = canvas.getContext('2d');
             ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+            if (gameState !== 'playing') {
+                resetGame();
+            }
         };
         handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, []);
+    }, [gameState, resetGame]);
 
     useEffect(() => {
         if (gameState === 'playing') {
@@ -255,7 +282,7 @@ export default function GamePage() {
     useEffect(() => {
         const handleInput = (e: Event) => {
             e.preventDefault();
-            if (e instanceof KeyboardEvent && e.key !== ' ' && e.key !== 'Enter') return;
+            if (e.key && e.key !== ' ' && e.key !== 'Enter') return;
             jump();
         };
         
@@ -279,7 +306,7 @@ export default function GamePage() {
         }
     }
 
-    if (gameState === 'loading') {
+    if (gameState === 'loading' || !imagesLoaded) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -336,7 +363,3 @@ export default function GamePage() {
         </main>
     );
 }
-
-    
-
-    
