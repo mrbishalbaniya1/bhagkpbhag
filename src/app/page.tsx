@@ -5,11 +5,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
-import { Loader2, Music, Music2, ShieldCheck } from 'lucide-react';
+import { Loader2, Music, Music2, ShieldCheck, Trophy } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface GameAsset {
     name: string;
@@ -29,6 +31,11 @@ interface GameAssets {
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
 
+interface LeaderboardEntry {
+    score: number;
+    date: string;
+}
+
 export default function GamePage() {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -44,6 +51,7 @@ export default function GamePage() {
     const [currentLevel, setCurrentLevel] = useState<GameLevel>(defaultGameLevels[0]);
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
+    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [coins, setCoins] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
 
@@ -84,8 +92,15 @@ export default function GamePage() {
     useEffect(() => {
         if (assetsLoading) return;
 
-        const storedHigh = typeof window !== 'undefined' ? localStorage.getItem("runKrishnaRun_high") || "0" : "0";
-        setHighScore(parseInt(storedHigh, 10));
+        if (typeof window !== 'undefined') {
+            const storedHigh = localStorage.getItem("runKrishnaRun_high") || "0";
+            setHighScore(parseInt(storedHigh, 10));
+            const storedLeaderboard = localStorage.getItem("runKrishnaRun_leaderboard");
+            if (storedLeaderboard) {
+                setLeaderboard(JSON.parse(storedLeaderboard));
+            }
+        }
+
 
         const placeholderImages = getPlaceholderImages();
         
@@ -267,16 +282,28 @@ export default function GamePage() {
         }
     }, [resetGame, currentLevel, imagesLoaded, gameMode]);
 
+    const updateLeaderboard = (newScore: number) => {
+        const newEntry = { score: newScore, date: new Date().toLocaleDateString() };
+        const updatedLeaderboard = [...leaderboard, newEntry]
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5);
+        setLeaderboard(updatedLeaderboard);
+        localStorage.setItem("runKrishnaRun_leaderboard", JSON.stringify(updatedLeaderboard));
+    };
+
     const endGame = useCallback(() => {
         setGameState('over');
         audioRef.current?.pause();
         if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
 
-        if (gameMode !== 'zen' && score > highScore) {
-            setHighScore(score);
-            localStorage.setItem("runKrishnaRun_high", score.toString());
+        if (gameMode !== 'zen') {
+             if (score > highScore) {
+                setHighScore(score);
+                localStorage.setItem("runKrishnaRun_high", score.toString());
+            }
+            updateLeaderboard(score);
         }
-    }, [score, highScore, gameMode]);
+    }, [score, highScore, gameMode, leaderboard]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {
@@ -728,55 +755,96 @@ export default function GamePage() {
             )}
 
             {gameState === 'over' && currentLevel && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80">
-                    <div className="bg-card/90 p-8 rounded-xl shadow-2xl text-center border w-full max-w-sm">
-                        <h2 className="text-4xl font-bold text-destructive mb-2">Game Over</h2>
-                        {gameMode !== 'zen' && (
-                            <>
-                                <p className="text-lg text-muted-foreground mb-1">Your score: <span className="font-bold text-foreground">{score}</span></p>
-                                <p className="text-lg text-muted-foreground mb-4">Coins collected: <span className="font-bold text-foreground">{coins}</span></p>
-                            </>
-                        )}
+                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 overflow-y-auto p-4">
+                    <div className="flex flex-col lg:flex-row gap-8 w-full max-w-4xl">
+                        <Card className="bg-card/90 shadow-2xl border w-full lg:w-1/2">
+                             <CardHeader>
+                                <CardTitle className="text-4xl font-bold text-destructive mb-2 text-center">Game Over</CardTitle>
+                             </CardHeader>
+                             <CardContent className="text-center">
+                                {gameMode !== 'zen' && (
+                                    <>
+                                        <p className="text-lg text-muted-foreground mb-1">Your score: <span className="font-bold text-foreground">{score}</span></p>
+                                        <p className="text-lg text-muted-foreground mb-4">Coins collected: <span className="font-bold text-foreground">{coins}</span></p>
+                                    </>
+                                )}
+                                <div className="space-y-4 mt-6">
+                                    <Select onValueChange={(value: GameMode) => handleGameModeChange(value)} defaultValue={gameMode}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select mode" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="classic"><span className="capitalize">Classic</span></SelectItem>
+                                            <SelectItem value="timeAttack"><span className="capitalize">Time Attack</span></SelectItem>
+                                            <SelectItem value="zen"><span className="capitalize">Zen Mode</span></SelectItem>
+                                            <SelectItem value="insane"><span className="capitalize">Insane</span></SelectItem>
+                                        </SelectContent>
+                                    </Select>
+        
+                                     <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id} disabled={gameMode === 'insane'}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select level" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {gameLevels?.filter(l => l.id !== 'insane').map(l => (
+                                                <SelectItem key={l.id} value={l.id}>
+                                                    <span className="capitalize">{l.name}</span>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+        
+                                    <Button size="lg" onClick={handleRestart} className="w-full">
+                                        Restart
+                                    </Button>
+                                    {gameAssets?.bgMusic?.url && (
+                                        <Button variant="outline" size="lg" onClick={toggleMute} className="w-full flex items-center gap-2">
+                                            {isMuted ? <Music2 /> : <Music />}
+                                            <span>{isMuted ? 'Unmute' : 'Mute'}</span>
+                                        </Button>
+                                    )}
+                                </div>
+                             </CardContent>
+                        </Card>
                         
-                        <div className="space-y-4">
-                            <Select onValueChange={(value: GameMode) => handleGameModeChange(value)} defaultValue={gameMode}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select mode" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="classic"><span className="capitalize">Classic</span></SelectItem>
-                                    <SelectItem value="timeAttack"><span className="capitalize">Time Attack</span></SelectItem>
-                                    <SelectItem value="zen"><span className="capitalize">Zen Mode</span></SelectItem>
-                                    <SelectItem value="insane"><span className="capitalize">Insane</span></SelectItem>
-                                </SelectContent>
-                            </Select>
-
-                             <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id} disabled={gameMode === 'insane'}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select level" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {gameLevels?.filter(l => l.id !== 'insane').map(l => (
-                                        <SelectItem key={l.id} value={l.id}>
-                                            <span className="capitalize">{l.name}</span>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-
-                            <Button size="lg" onClick={handleRestart} className="w-full">
-                                Restart
-                            </Button>
-                            {gameAssets?.bgMusic?.url && (
-                                <Button variant="outline" size="lg" onClick={toggleMute} className="w-full flex items-center gap-2">
-                                    {isMuted ? <Music2 /> : <Music />}
-                                    <span>{isMuted ? 'Unmute' : 'Mute'}</span>
-                                </Button>
-                            )}
-                        </div>
+                        <Card className="bg-card/90 shadow-2xl border w-full lg:w-1/2">
+                            <CardHeader>
+                                <CardTitle className="flex items-center justify-center gap-2">
+                                    <Trophy className="text-yellow-500" />
+                                    <span>Local Leaderboard</span>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[100px]">Rank</TableHead>
+                                            <TableHead>Score</TableHead>
+                                            <TableHead className="text-right">Date</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {leaderboard.length > 0 ? (
+                                            leaderboard.map((entry, index) => (
+                                                <TableRow key={index}>
+                                                    <TableCell className="font-medium">{index + 1}</TableCell>
+                                                    <TableCell>{entry.score}</TableCell>
+                                                    <TableCell className="text-right">{entry.date}</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={3} className="text-center">No scores yet. Play a game!</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
                     </div>
                 </div>
             )}
         </main>
     );
 }
+
