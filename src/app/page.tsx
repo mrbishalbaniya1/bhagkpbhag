@@ -398,9 +398,7 @@ export default function GamePage() {
             
             {gameState !== 'loading' && (
                 <>
-                    <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-                        {user && <Link href="/admin"><Button variant="secondary">Admin</Button></Link>}
-                    </div>
+                    {user && <Link href="/admin"></Link>}
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
                         <div className="text-3xl font-bold">{score}</div>
                         <div className="text-sm">High: {highScore}</div>
