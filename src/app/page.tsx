@@ -261,7 +261,7 @@ export default function GamePage() {
         return (
              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 text-foreground">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg font-semibold">Loading Game...</p>
+                <p className="text-lg font-semibold">Loading Krishna's Adventure...</p>
             </div>
         )
     }
@@ -315,4 +315,3 @@ export default function GamePage() {
         </main>
     );
 }
-
