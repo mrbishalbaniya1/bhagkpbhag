@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
@@ -144,7 +145,7 @@ const AdminPageContent: React.FC = () => {
                 }
                 const newLevelRef = doc(firestore, 'game_levels', newLevelId);
                 const newLevelData = { ...formData, id: newLevelId };
-                setDocumentNonBlocking(newLevelRef, newLevelData, {merge: false});
+                setDocumentNonBlocking(newLevelRef, newLevelData, {});
                 toast({ title: 'Success', description: 'Game level added successfully.' });
             }
             setIsDialogOpen(false);
@@ -280,3 +281,6 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
+
+
+    
