@@ -748,14 +748,14 @@ export default function GamePage() {
             )}
             
             {gameState === 'ready' && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/50 text-foreground text-center p-4">
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/50 text-foreground text-center p-4 animate-in fade-in duration-500">
                     <h1 className="text-5xl font-bold font-headline drop-shadow-xl mb-4 text-primary">Run Krishna Run</h1>
                     <p className="text-xl font-semibold animate-pulse">Tap or Press Space to Start</p>
                 </div>
             )}
 
             {gameState === 'over' && currentLevel && (
-                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 overflow-y-auto p-4">
+                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 overflow-y-auto p-4 animate-in fade-in duration-500">
                     <div className="flex flex-col lg:flex-row gap-8 w-full max-w-4xl">
                         <Card className="bg-card/90 shadow-2xl border w-full lg:w-1/2">
                              <CardHeader>
@@ -770,7 +770,7 @@ export default function GamePage() {
                                 )}
                                 <div className="space-y-4 mt-6">
                                     <Select onValueChange={(value: GameMode) => handleGameModeChange(value)} defaultValue={gameMode}>
-                                        <SelectTrigger>
+                                        <SelectTrigger className="transition-transform duration-200 hover:scale-105">
                                             <SelectValue placeholder="Select mode" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -782,7 +782,7 @@ export default function GamePage() {
                                     </Select>
         
                                      <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id} disabled={gameMode === 'insane'}>
-                                        <SelectTrigger>
+                                        <SelectTrigger className="transition-transform duration-200 hover:scale-105">
                                             <SelectValue placeholder="Select level" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -794,11 +794,11 @@ export default function GamePage() {
                                         </SelectContent>
                                     </Select>
         
-                                    <Button size="lg" onClick={handleRestart} className="w-full">
+                                    <Button size="lg" onClick={handleRestart} className="w-full transition-transform duration-200 hover:scale-105">
                                         Restart
                                     </Button>
                                     {gameAssets?.bgMusic?.url && (
-                                        <Button variant="outline" size="lg" onClick={toggleMute} className="w-full flex items-center gap-2">
+                                        <Button variant="outline" size="lg" onClick={toggleMute} className="w-full flex items-center gap-2 transition-transform duration-200 hover:scale-105">
                                             {isMuted ? <Music2 /> : <Music />}
                                             <span>{isMuted ? 'Unmute' : 'Mute'}</span>
                                         </Button>
