@@ -1,3 +1,4 @@
+
 // This file is now deprecated as game levels are managed in Firestore.
 // The types are still useful for the game logic.
 
@@ -38,6 +39,15 @@ export interface Collectible {
   w: number;
   h: number;
   type: 'coin' | 'shield' | 'slowMo' | 'doubleScore';
+}
+
+export interface Particle {
+  x: number;
+  y: number;
+  size: number;
+  speedY: number;
+  speedX: number;
+  alpha: number;
 }
 
 

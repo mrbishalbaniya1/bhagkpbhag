@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
-import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible } from '@/lib/game-config';
+import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle } from '@/lib/game-config';
 import { Loader2, Music, Music2, ShieldCheck } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -54,6 +54,7 @@ export default function GamePage() {
 
     // Dynamic Obstacles State
     const windRef = useRef({ direction: 1, strength: 0.1, timer: 0 });
+    const particlesRef = useRef<Particle[]>([]);
 
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -223,6 +224,7 @@ export default function GamePage() {
 
         pipesRef.current = [];
         collectiblesRef.current = [];
+        particlesRef.current = [];
         frameRef.current = 0;
         windRef.current = { direction: 1, strength: 0.1, timer: 0 };
         setScore(0);
@@ -248,15 +250,30 @@ export default function GamePage() {
         }
     }, [score, highScore]);
     
+    const createJumpParticles = useCallback(() => {
+        for (let i = 0; i < 15; i++) {
+            particlesRef.current.push({
+                x: playerRef.current.x + playerRef.current.w / 2,
+                y: playerRef.current.y + playerRef.current.h,
+                size: Math.random() * 4 + 1,
+                speedY: Math.random() * 2 + 1,
+                speedX: (Math.random() - 0.5) * 4,
+                alpha: 1,
+            });
+        }
+    }, []);
+
     const jump = useCallback(() => {
         if (!currentLevel) return;
         if (gameState === 'playing') {
             playerRef.current.vel = currentLevel.lift;
+            createJumpParticles();
         } else if (gameState === 'ready' && imagesLoaded) {
             startGame();
             playerRef.current.vel = currentLevel.lift;
+            createJumpParticles();
         }
-    }, [gameState, currentLevel, startGame, imagesLoaded]);
+    }, [gameState, currentLevel, startGame, imagesLoaded, createJumpParticles]);
 
     const handlePowerUpTimers = useCallback(() => {
         if (slowMo.active) {
@@ -363,6 +380,16 @@ export default function GamePage() {
             }
         });
 
+        // Handle particles
+        particlesRef.current.forEach((p, i) => {
+            p.y += p.speedY;
+            p.x += p.speedX;
+            p.alpha -= 0.03;
+            if (p.alpha <= 0) {
+                particlesRef.current.splice(i, 1);
+            }
+        });
+
         handlePowerUpTimers();
 
         pipesRef.current = pipesRef.current.filter(p => p.x + p.w > -40);
@@ -445,9 +472,21 @@ export default function GamePage() {
              ctx.drawImage(c.img, c.x, c.y, c.w, c.h);
         });
 
+        // Draw particles
+        particlesRef.current.forEach(p => {
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = 'rgba(255, 223, 186, 0.8)'; // Light orange/gold color
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+
         ctx.save();
         ctx.translate(playerRef.current.x + playerRef.current.w / 2, playerRef.current.y + playerRef.current.h / 2);
-        ctx.rotate(Math.min(playerRef.current.vel / 40, 0.4));
+        const rotation = Math.atan(playerRef.current.vel / 15); // Enhanced rotation
+        ctx.rotate(rotation);
         ctx.drawImage(playerImgRef.current!, -playerRef.current.w / 2, -playerRef.current.h / 2, playerRef.current.w, playerRef.current.h);
         ctx.restore();
         
@@ -635,4 +674,3 @@ export default function GamePage() {
         </main>
     );
 }
-
