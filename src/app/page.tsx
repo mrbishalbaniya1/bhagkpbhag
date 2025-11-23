@@ -113,7 +113,7 @@ export default function GamePage() {
         if (user && userProfile) {
             setHighScore(userProfile.highScore || 0);
         } else if (typeof window !== 'undefined') {
-            const storedHigh = localStorage.getItem("runKrishnaRun_high") || "0";
+            const storedHigh = localStorage.getItem("BhagKpBhag_high") || "0";
             setHighScore(parseInt(storedHigh, 10));
         }
     }, [user, userProfile]);
@@ -344,7 +344,7 @@ export default function GamePage() {
                 if (user && firestore && userProfileRef) {
                     updateDocumentNonBlocking(userProfileRef, { highScore: score });
                 } else {
-                    localStorage.setItem("runKrishnaRun_high", score.toString());
+                    localStorage.setItem("BhagKpBhag_high", score.toString());
                 }
             }
             saveScoreToLeaderboard();
@@ -819,7 +819,7 @@ export default function GamePage() {
             
             {gameState === 'ready' && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/50 text-foreground text-center p-4 animate-in fade-in duration-500">
-                    <h1 className="text-5xl font-bold font-headline drop-shadow-xl mb-4 text-primary">Run Krishna Run</h1>
+                    <h1 className="text-5xl font-bold font-headline drop-shadow-xl mb-4 text-primary">BhagKpBhag</h1>
                     <p className="text-xl font-semibold animate-pulse">Tap or Press Space to Start</p>
                 </div>
             )}
