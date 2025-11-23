@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
-import { type Level, type Player, type Pipe } from '@/lib/game-config';
+import { type GameLevel, type Player, type Pipe } from '@/lib/game-config';
 import { Loader2 } from 'lucide-react';
 import { useUser, useFirestore, useCollection } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -16,10 +16,10 @@ export default function GamePage() {
     const { user } = useUser();
     const firestore = useFirestore();
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
-    const { data: gameLevels, isLoading: levelsLoading } = useCollection<any>(gameLevelsRef);
+    const { data: gameLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
 
     const [gameState, setGameState] = useState<'loading' | 'ready' | 'playing' | 'over'>('loading');
-    const [currentLevel, setCurrentLevel] = useState<any | null>(null);
+    const [currentLevel, setCurrentLevel] = useState<GameLevel | null>(null);
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
 
@@ -37,9 +37,9 @@ export default function GamePage() {
 
     useEffect(() => {
         if (gameLevels && gameLevels.length > 0 && !currentLevel) {
-            setCurrentLevel(gameLevels.find(l => l.name === 'easy') || gameLevels[0]);
+            setCurrentLevel(gameLevels.find(l => l.name.toLowerCase() === 'easy') || gameLevels[0]);
         }
-    }, [gameLevels, currentLevel]);
+    }, [gameLevels]);
 
     useEffect(() => {
         const storedHigh = localStorage.getItem("runKrishnaRun_high") || "0";
@@ -72,13 +72,15 @@ export default function GamePage() {
                 bgImgRef.current = bgImg;
                 pipeImgRef.current = pipeImg;
                 playerImgRef.current = playerImg;
-                setGameState('ready');
+                if (gameState === 'loading') {
+                    setGameState('ready');
+                }
             } catch (error) {
                 console.error("Failed to load game images", error);
             }
         };
         loadImages();
-    }, []);
+    }, [gameState]);
 
     const resetGame = useCallback(() => {
         const canvas = canvasRef.current;
@@ -119,7 +121,7 @@ export default function GamePage() {
         if (!currentLevel) return;
         if (gameState === 'playing') {
             playerRef.current.vel = currentLevel.lift;
-        } else if (gameState === 'ready') {
+        } else if (gameState === 'ready' || gameState === 'over') {
             startGame();
             playerRef.current.vel = currentLevel.lift;
         }
@@ -235,7 +237,7 @@ export default function GamePage() {
     useEffect(() => {
         const handleInput = (e: Event) => {
             e.preventDefault();
-            if (e instanceof KeyboardEvent && e.key !== ' ') return;
+            if (e instanceof KeyboardEvent && e.key !== ' ' && e.key !== 'Enter') return;
             jump();
         };
         
@@ -253,7 +255,8 @@ export default function GamePage() {
         if (newLevel) {
             setCurrentLevel(newLevel);
             if(gameState === 'playing' || gameState === 'over') {
-               startGame();
+               resetGame();
+               setGameState('ready');
             }
         }
     }
@@ -306,7 +309,7 @@ export default function GamePage() {
                     <div className="bg-card/90 p-8 rounded-xl shadow-2xl text-center border">
                         <h2 className="text-4xl font-bold text-destructive mb-2">Game Over</h2>
                         <p className="text-lg text-muted-foreground mb-6">Your score: <span className="font-bold text-foreground">{score}</span></p>
-                        <Button size="lg" variant="destructive" onClick={startGame}>
+                        <Button size="lg" variant="primary" onClick={jump}>
                             Restart
                         </Button>
                     </div>
@@ -315,3 +318,5 @@ export default function GamePage() {
         </main>
     );
 }
+
+    
