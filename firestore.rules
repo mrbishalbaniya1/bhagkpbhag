@@ -135,7 +135,7 @@ service cloud.firestore {
      * @deny Updates and deletes are not allowed to ensure data integrity.
      */
     match /game_events/{eventId} {
-      allow create: if isSignedIn();
+      allow write: if isSignedIn();
       allow read, list: if isAdmin();
       allow update, delete: if false;
     }
