@@ -7,9 +7,11 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  UserCredential,
 } from 'firebase/auth';
 import { Firestore, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { useToast } from '@/hooks/use-toast';
+import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
 interface SignUpOptions {
     firestore: Firestore;
@@ -22,98 +24,113 @@ export function initiateAnonymousSignIn(authInstance: Auth): void {
 }
 
 /** Initiate email/password sign-up and create user profile (non-blocking). */
-export function initiateEmailSignUp(authInstance: Auth, email: string, password: string, options: SignUpOptions): void {
-  createUserWithEmailAndPassword(authInstance, email, password)
-    .then(userCredential => {
-        // After user is created in Auth, create their profile document in Firestore.
-        const user = userCredential.user;
-        const userProfileRef = doc(options.firestore, 'users', user.uid);
-        
-        const userProfileData = {
-            displayName: options.displayName,
-            email: user.email,
-            createdAt: serverTimestamp(),
-            highScore: 0,
-        };
-        
-        // This is a non-blocking write.
-        return setDoc(userProfileRef, userProfileData);
-    })
-    .catch((error) => {
-        console.error("Sign-up error:", error);
-        // You might want to use a toast here to show the error to the user
-    });
+export async function initiateEmailSignUp(authInstance: Auth, email: string, password: string, options: SignUpOptions): Promise<UserCredential> {
+  const userCredential = await createUserWithEmailAndPassword(authInstance, email, password);
+  const user = userCredential.user;
+  const userProfileRef = doc(options.firestore, 'users', user.uid);
+  
+  const userProfileData = {
+      displayName: options.displayName,
+      email: user.email,
+      createdAt: serverTimestamp(),
+      highScore: 0,
+  };
+  
+  await setDoc(userProfileRef, userProfileData);
+  return userCredential;
 }
 
 /** Initiate email/password sign-in, with sign-up fallback (non-blocking). */
-export function initiateEmailSignIn(
+export async function initiateEmailSignIn(
     authInstance: Auth, 
     email: string, 
     password: string, 
     toast: ReturnType<typeof useToast>['toast'],
+    router: AppRouterInstance,
     signUpOptions?: SignUpOptions
-): void {
-  signInWithEmailAndPassword(authInstance, email, password)
-    .catch((error) => {
-        // If the user doesn't exist and we have sign-up info, create a new account.
-        if (error.code === 'auth/user-not-found' && signUpOptions) {
-            initiateEmailSignUp(authInstance, email, password, signUpOptions);
-        } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
-             // User exists, but password was wrong, or user not found and not in sign-up flow.
-             toast({
-                variant: 'destructive',
-                title: 'Sign In Failed',
-                description: 'The email or password you entered is incorrect.',
-             });
-        } else if (error.code === 'auth/email-already-in-use') {
-            toast({
-                variant: 'destructive',
-                title: 'Sign Up Failed',
-                description: 'An account with this email already exists.',
-            });
-        } else {
-            // For other errors, log them and show a generic message.
-            console.error("Sign-in/up error:", error);
-             toast({
-                variant: 'destructive',
-                title: 'An Error Occurred',
-                description: error.message || 'An unexpected error occurred.',
-             });
-        }
-    });
+): Promise<void> {
+  toast({ title: signUpOptions ? 'Creating account...' : 'Verifying...', description: 'Please wait.' });
+  try {
+    await signInWithEmailAndPassword(authInstance, email, password);
+    toast({ title: 'Success!', description: 'You are now signed in.' });
+    router.push('/');
+  } catch (error: any) {
+      if (error.code === 'auth/user-not-found' && signUpOptions) {
+          try {
+              await initiateEmailSignUp(authInstance, email, password, signUpOptions);
+              toast({ title: 'Account Created!', description: 'You are now signed in.' });
+              router.push('/');
+          } catch (signUpError: any) {
+              console.error("Sign-up error:", signUpError);
+              toast({
+                  variant: 'destructive',
+                  title: 'Sign Up Failed',
+                  description: signUpError.message || 'Could not create your account.',
+              });
+          }
+      } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+           toast({
+              variant: 'destructive',
+              title: 'Sign In Failed',
+              description: 'The email or password you entered is incorrect.',
+           });
+      } else if (error.code === 'auth/email-already-in-use') {
+          toast({
+              variant: 'destructive',
+              title: 'Sign Up Failed',
+              description: 'An account with this email already exists.',
+          });
+      } else {
+          console.error("Sign-in/up error:", error);
+           toast({
+              variant: 'destructive',
+              title: 'An Error Occurred',
+              description: error.message || 'An unexpected error occurred.',
+           });
+      }
+  }
 }
 
 /** Initiate Google Sign-In and create user profile if new (non-blocking). */
-export function initiateGoogleSignIn(
+export async function initiateGoogleSignIn(
   authInstance: Auth,
   firestore: Firestore,
-  toast: ReturnType<typeof useToast>['toast']
-): void {
+  toast: ReturnType<typeof useToast>['toast'],
+  router: AppRouterInstance
+): Promise<void> {
   const provider = new GoogleAuthProvider();
-  signInWithPopup(authInstance, provider)
-    .then(async (result) => {
-      const user = result.user;
-      const userProfileRef = doc(firestore, 'users', user.uid);
-      const docSnap = await getDoc(userProfileRef);
+  toast({ title: 'Signing In with Google...', description: 'Please follow the prompts.' });
+  try {
+    const result = await signInWithPopup(authInstance, provider);
+    const user = result.user;
+    const userProfileRef = doc(firestore, 'users', user.uid);
+    const docSnap = await getDoc(userProfileRef);
 
-      if (!docSnap.exists()) {
-        // This is a new user, so create their profile.
-        const userProfileData = {
-          displayName: user.displayName || 'Anonymous',
-          email: user.email,
-          createdAt: serverTimestamp(),
-          highScore: 0,
-        };
-        await setDoc(userProfileRef, userProfileData);
-      }
-      // Existing users just sign in.
-    })
-    .catch((error) => {
-      console.error("Google sign-in error:", error);
+    if (!docSnap.exists()) {
+      const userProfileData = {
+        displayName: user.displayName || 'Anonymous',
+        email: user.email,
+        createdAt: serverTimestamp(),
+        highScore: 0,
+      };
+      await setDoc(userProfileRef, userProfileData);
+    }
+    toast({ title: 'Success!', description: 'You are now signed in with Google.' });
+    router.push('/');
+  } catch (error: any) {
+    console.error("Google sign-in error:", error);
+    if (error.code === 'auth/popup-closed-by-user') {
+      toast({
+        variant: 'default',
+        title: 'Sign-in cancelled',
+        description: 'You closed the Google Sign-In window.',
+      });
+    } else {
       toast({
         variant: 'destructive',
         title: 'Google Sign-In Failed',
         description: error.message || 'Could not sign in with Google.',
       });
-    });
+    }
+  }
 }

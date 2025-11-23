@@ -11,20 +11,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { signInAnonymously } from 'firebase/auth';
+import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [isSigningUp, setIsSigningUp] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const auth = useAuth();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleAuthAction = (e: React.FormEvent) => {
+  const handleAuthAction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth || !firestore) return;
+    if (!auth || !firestore || isLoading) return;
+
+    setIsLoading(true);
 
     if (isSigningUp) {
       if (!displayName) {
@@ -33,21 +37,20 @@ export default function LoginPage() {
             title: 'Display Name Required',
             description: 'Please enter a display name to create an account.',
         });
+        setIsLoading(false);
         return;
       }
-      initiateEmailSignIn(auth, email, password, toast, { firestore, displayName });
+      await initiateEmailSignIn(auth, email, password, toast, router, { firestore, displayName });
     } else {
-      initiateEmailSignIn(auth, email, password, toast);
+      await initiateEmailSignIn(auth, email, password, toast, router);
     }
     
-    toast({
-      title: isSigningUp ? 'Creating account...' : 'Verifying...',
-      description: 'Please wait.',
-    });
+    setIsLoading(false);
   };
   
   const handleAnonymousSignIn = async () => {
-    if (!auth) return;
+    if (!auth || isLoading) return;
+    setIsLoading(true);
     try {
       await signInAnonymously(auth);
       toast({
@@ -62,16 +65,16 @@ export default function LoginPage() {
             title: 'Guest Sign In Failed',
             description: error.message || 'Could not sign in as guest.',
         });
+    } finally {
+      setIsLoading(false);
     }
   };
   
-  const handleGoogleSignIn = () => {
-    if (!auth || !firestore) return;
-    initiateGoogleSignIn(auth, firestore, toast);
-    toast({
-      title: 'Signing In with Google...',
-      description: 'Please follow the prompts.',
-    });
+  const handleGoogleSignIn = async () => {
+    if (!auth || !firestore || isLoading) return;
+    setIsLoading(true);
+    await initiateGoogleSignIn(auth, firestore, toast, router);
+    setIsLoading(false);
   };
 
 
@@ -98,6 +101,7 @@ export default function LoginPage() {
                     required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
+                    disabled={isLoading}
                   />
                </div>
             )}
@@ -110,6 +114,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
               />
             </div>
             <div className="grid gap-2">
@@ -120,18 +125,24 @@ export default function LoginPage() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full">{isSigningUp ? 'Sign Up' : 'Sign In'}</Button>
-             <Button variant="link" type="button" onClick={() => setIsSigningUp(!isSigningUp)}>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSigningUp ? 'Sign Up' : 'Sign In'}
+            </Button>
+             <Button variant="link" type="button" onClick={() => setIsSigningUp(!isSigningUp)} disabled={isLoading}>
                 {isSigningUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
              </Button>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} type="button">
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} type="button" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign In with Google
             </Button>
-            <Button variant="outline" className="w-full" onClick={handleAnonymousSignIn} type="button">
+            <Button variant="outline" className="w-full" onClick={handleAnonymousSignIn} type="button" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Continue as Guest
             </Button>
           </CardFooter>
