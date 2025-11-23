@@ -1,0 +1,139 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the application who can log in and access admin features.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's username for logging in."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "isAdmin": {
+          "type": "boolean",
+          "description": "Indicates whether the user has administrator privileges."
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "isAdmin"
+      ]
+    },
+    "GameLevel": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GameLevel",
+      "type": "object",
+      "description": "Represents a specific game level setting.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the GameLevel entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the game level (e.g., Easy, Normal, Hard)."
+        },
+        "gravity": {
+          "type": "number",
+          "description": "The gravity setting for the game level."
+        },
+        "lift": {
+          "type": "number",
+          "description": "The lift setting for the game level."
+        },
+        "gap": {
+          "type": "number",
+          "description": "The gap size between pipes for the game level."
+        },
+        "speed": {
+          "type": "number",
+          "description": "The game speed for the game level."
+        },
+        "spawnRate": {
+          "type": "number",
+          "description": "The pipe spawn rate for the game level."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "gravity",
+        "lift",
+        "gap",
+        "speed",
+        "spawnRate"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user data.  'userId' corresponds to Firebase Auth UID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "roles_admin",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Indicates admin privileges for a user. Existence of a document with the user's ID grants admin access.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/game_levels/{gameLevelId}",
+        "definition": {
+          "entityName": "GameLevel",
+          "schema": {
+            "$ref": "#/backend/entities/GameLevel"
+          },
+          "description": "Stores game level configurations.",
+          "params": [
+            {
+              "name": "gameLevelId",
+              "description": "Unique identifier for the game level."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure prioritizes security and scalability for the game application. It includes collections for user management (including admin roles) and game level configuration.\n\n**Authorization Independence:**\nAdmin status is managed via the `roles_admin` collection. The presence of a document in this collection for a given user ID grants admin privileges. This approach avoids the need for `get()` calls in security rules to verify admin status, ensuring authorization independence.\n\n**QAPs (Rules are not Filters):**\n*   **List Operation Security for Game Levels:** The `game_levels` collection stores all game level configurations. Security rules can easily restrict access to this collection based on admin status, since admin status does not depend on the content of the level itself.\n*   **Admin Role Management:** The `roles_admin` collection is separate from user data, allowing for efficient and secure management of admin roles. List operations are inherently secure because the rules only need to check for the existence of a document with the user's ID."
+  }
+}

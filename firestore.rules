@@ -1,0 +1,146 @@
+/**
+ * @file firestore.rules
+ * @description Security rules for a game application with an admin panel.
+ *
+ * @section Core Philosophy
+ * This ruleset implements a Role-Based Access Control (RBAC) model. A user's
+ * administrative status is the primary factor for granting elevated permissions.
+ * Standard users have limited access, primarily to manage their own data.
+ *
+ * @section Data Structure
+ * - /users/{userId}: Stores private user profile data. Each user has exclusive
+ *   control over their own document.
+ * - /roles_admin/{userId}: A dedicated collection for managing admin privileges. The
+ *   mere existence of a document here grants a user admin rights across the app.
+ * - /game_levels/{gameLevelId}: Contains game configuration data, which is
+ *   publicly readable by all users but can only be managed by administrators.
+ *
+ * @section Key Security Decisions
+ * - Admin Role Management: Admin status is determined by checking for a document's
+ *   existence in `/roles_admin/{request.auth.uid}`. This is a highly performant
+ *   and secure pattern that avoids costly `get()` calls in other rules.
+ * - User Privacy: Listing the entire `/users` collection is explicitly disallowed
+ *   to protect user privacy and prevent data scraping.
+ * - Privilege Escalation Prevention: The `/roles_admin` collection is read-only
+ *   from the client-side. This is a critical security measure to prevent any
+ *   user, including other admins, from modifying roles via the app. Admin roles
+ *   must be assigned out-of-band (e.g., via the Firebase Console or a trusted
+ *   server environment). The `isAdmin` field on a user's profile document is
+ *   also enforced as immutable to prevent self-promotion.
+ * - Default Secure: The default posture is to deny all access unless explicitly
+ *   granted.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns true if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Returns true if the requesting user's UID matches the given userId.
+     * This is the foundation for document ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Returns true if the user is an owner and the document already exists.
+     * Used for safe update and delete operations.
+     */
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * Checks for the existence of a document in the roles_admin collection.
+     * This is the single source of truth for determining admin privileges.
+     * This is fast and efficient as it only checks for existence, not content.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+    
+    /**
+     * Returns true if the user is an admin and the document already exists.
+     * Used for safe update and delete operations by admins.
+     */
+    function isExistingAdmin() {
+      return isAdmin() && resource != null;
+    }
+
+    // -------------------------------------------------------------------------
+    // User Profiles (/users)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Controls access to user profile documents.
+     * @path /users/{userId}
+     * @allow (get) A user can get their own profile document.
+     * @deny (get) A user cannot get another user's profile.
+     * @allow (create) A new user can create their own profile document.
+     * @deny (update) A user cannot update another user's profile.
+     * @deny (list) Listing all users is forbidden to protect user privacy.
+     * @principle Restricts access to a user's own data tree (Ownership).
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Protect user privacy by disallowing user enumeration.
+      allow create: if isOwner(userId) && request.resource.data.id == userId && request.resource.data.isAdmin == false;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id && request.resource.data.isAdmin == resource.data.isAdmin;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin Roles (/roles_admin)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Controls access to the admin role lookup collection.
+     * @path /roles_admin/{userId}
+     * @allow (get) An admin can check if another user is an admin.
+     * @deny (get) A non-admin cannot read this collection.
+     * @deny (create, update, delete) All client-side writes are forbidden to
+     *       prevent privilege escalation. Admins must be created via the
+     *       Firebase Console or a trusted server-side process.
+     * @principle Secures role management by making it read-only from clients.
+     */
+    match /roles_admin/{userId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if false; // CRITICAL: Prevent client-side privilege escalation.
+      allow update: if false; // CRITICAL: Roles must not be mutable from the client.
+      allow delete: if false; // CRITICAL: Roles must not be mutable from the client.
+    }
+
+    // -------------------------------------------------------------------------
+    // Game Levels (/game_levels)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Controls access to game level configurations.
+     * @path /game_levels/{gameLevelId}
+     * @allow (get, list) Any user, signed-in or not, can read game levels.
+     * @deny (create) A non-admin user cannot create a new game level.
+     * @allow (create) An admin can create a new game level.
+     * @deny (update, delete) A non-admin cannot modify or delete game levels.
+     * @principle Enforces public read access with admin-only write permissions.
+     */
+    match /game_levels/{gameLevelId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin() && request.resource.data.id == gameLevelId;
+      allow update: if isExistingAdmin() && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingAdmin();
+    }
+  }
+}
