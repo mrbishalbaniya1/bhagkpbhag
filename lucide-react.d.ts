@@ -13,6 +13,8 @@ declare module 'lucide-react' {
   export const ShieldCheck: Icon;
   export const Trash2: Icon;
   export const Trophy: Icon;
+  export const Volume2: Icon;
+  export const VolumeX: Icon;
 
   // You can also create a type for all available icons if you need it
   // This is useful for props that accept any icon name
@@ -22,7 +24,9 @@ declare module 'lucide-react' {
     | 'Music2'
     | 'ShieldCheck'
     | 'Trash2'
-    | 'Trophy';
+    | 'Trophy'
+    | 'Volume2'
+    | 'VolumeX';
 
   // Add any other exports from the library you might need
   // For example, if you use a helper function:

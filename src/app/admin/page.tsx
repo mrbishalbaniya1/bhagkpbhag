@@ -33,6 +33,8 @@ interface GameAssets {
     shield?: GameAsset;
     slowMo?: GameAsset;
     doubleScore?: GameAsset;
+    jumpSound?: GameAsset;
+    collisionSound?: GameAsset;
 }
 
 const AdminPageContent: React.FC = () => {
@@ -117,7 +119,7 @@ const AdminPageContent: React.FC = () => {
             cloudinaryFormData.append('api_key', apiKey);
         }
         
-        const resourceType = assetId === 'bgMusic' ? 'video' : 'image';
+        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound'].includes(assetId) ? 'video' : 'image';
 
         try {
             const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
@@ -216,6 +218,21 @@ const AdminPageContent: React.FC = () => {
             {isUploading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
         </div>
     );
+    
+    const AudioUploadCard: React.FC<{assetId: keyof GameAssets, label: string, isUploading: boolean}> = ({ assetId, label, isUploading }) => (
+        <div className="space-y-2">
+            <Label htmlFor={`${assetId}File`} className="text-lg">{label}</Label>
+            {gameAssets?.[assetId] && (
+                <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground truncate">Current: {(gameAssets[assetId] as GameAsset).name}</p>
+                    <audio src={(gameAssets[assetId] as GameAsset).url} controls className="w-full" />
+                </div>
+            )}
+            <Input id={`${assetId}File`} type="file" accept="audio/*" onChange={handleFileChange(assetId)} disabled={isUploading}/>
+            {isUploading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
+        </div>
+    );
+
 
     if (isUserLoading || levelsLoading || assetsLoading) {
         return (
@@ -300,18 +317,9 @@ const AdminPageContent: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-3 gap-8">
-                        {/* Background Music */}
-                        <div className="space-y-2">
-                             <Label htmlFor="bgMusicFile" className="text-lg">Background Music</Label>
-                             {gameAssets?.bgMusic?.url && (
-                                 <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground truncate">Current: {gameAssets.bgMusic.name}</p>
-                                    <audio src={gameAssets.bgMusic.url} controls className="w-full" />
-                                 </div>
-                             )}
-                             <Input id="bgMusicFile" type="file" accept="audio/*" onChange={handleFileChange('bgMusic')} disabled={uploadingStates['bgMusic']}/>
-                            {uploadingStates['bgMusic'] && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
-                        </div>
+                       <AudioUploadCard assetId="bgMusic" label="Background Music" isUploading={!!uploadingStates['bgMusic']} />
+                       <AudioUploadCard assetId="jumpSound" label="Jump Sound" isUploading={!!uploadingStates['jumpSound']} />
+                       <AudioUploadCard assetId="collisionSound" label="Collision Sound" isUploading={!!uploadingStates['collisionSound']} />
                     </div>
                 </CardContent>
             </Card>

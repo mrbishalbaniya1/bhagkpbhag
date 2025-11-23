@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
-import { Loader2, Music, Music2, ShieldCheck, Trophy } from 'lucide-react';
+import { Loader2, Music, Music2, ShieldCheck, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
@@ -27,6 +27,8 @@ interface GameAssets {
     shield?: GameAsset;
     slowMo?: GameAsset;
     doubleScore?: GameAsset;
+    jumpSound?: GameAsset;
+    collisionSound?: GameAsset;
 }
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
@@ -76,6 +78,9 @@ export default function GamePage() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const gameLoopRef = useRef<number>();
     const audioRef = useRef<HTMLAudioElement>(null);
+    const jumpAudioRef = useRef<HTMLAudioElement>(null);
+    const collisionAudioRef = useRef<HTMLAudioElement>(null);
+
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
     const pipesRef = useRef<(Pipe & { img: HTMLImageElement })[]>([]);
@@ -294,6 +299,7 @@ export default function GamePage() {
     const endGame = useCallback(() => {
         setGameState('over');
         audioRef.current?.pause();
+        collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
         if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
 
         if (gameMode !== 'zen') {
@@ -332,10 +338,12 @@ export default function GamePage() {
         if (!currentLevel) return;
         if (gameState === 'playing') {
             playerRef.current.vel = currentLevel.lift;
+            jumpAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
             createJumpParticles();
         } else if (gameState === 'ready' && imagesLoaded) {
             startGame();
             playerRef.current.vel = currentLevel.lift;
+            jumpAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
             createJumpParticles();
         }
     }, [gameState, currentLevel, startGame, imagesLoaded, createJumpParticles]);
@@ -675,6 +683,12 @@ export default function GamePage() {
         if(audioRef.current){
             audioRef.current.muted = isMuted;
         }
+        if(jumpAudioRef.current){
+            jumpAudioRef.current.muted = isMuted;
+        }
+        if(collisionAudioRef.current){
+            collisionAudioRef.current.muted = isMuted;
+        }
     }, [isMuted]);
 
     const handleLevelChange = (levelId: string) => {
@@ -726,6 +740,12 @@ export default function GamePage() {
             
             {gameAssets?.bgMusic?.url && (
                 <audio ref={audioRef} src={gameAssets.bgMusic.url} loop playsInline />
+            )}
+             {gameAssets?.jumpSound?.url && (
+                <audio ref={jumpAudioRef} src={gameAssets.jumpSound.url} playsInline />
+            )}
+            {gameAssets?.collisionSound?.url && (
+                <audio ref={collisionAudioRef} src={gameAssets.collisionSound.url} playsInline />
             )}
             
             {gameState !== 'loading' && (
@@ -797,12 +817,10 @@ export default function GamePage() {
                                     <Button size="lg" onClick={handleRestart} className="w-full transition-transform duration-200 hover:scale-105">
                                         Restart
                                     </Button>
-                                    {gameAssets?.bgMusic?.url && (
-                                        <Button variant="outline" size="lg" onClick={toggleMute} className="w-full flex items-center gap-2 transition-transform duration-200 hover:scale-105">
-                                            {isMuted ? <Music2 /> : <Music />}
-                                            <span>{isMuted ? 'Unmute' : 'Mute'}</span>
-                                        </Button>
-                                    )}
+                                    <Button variant="outline" size="lg" onClick={toggleMute} className="w-full flex items-center gap-2 transition-transform duration-200 hover:scale-105">
+                                        {isMuted ? <VolumeX /> : <Volume2 />}
+                                        <span>{isMuted ? 'Unmute' : 'Mute'}</span>
+                                    </Button>
                                 </div>
                              </CardContent>
                         </Card>
@@ -847,4 +865,3 @@ export default function GamePage() {
         </main>
     );
 }
-
