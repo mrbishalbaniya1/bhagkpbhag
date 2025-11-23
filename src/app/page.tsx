@@ -113,6 +113,37 @@ export default function GamePage() {
     const playerImgRef = useRef<HTMLImageElement>();
     const collectibleImgsRef = useRef<{[key: string]: HTMLImageElement}>({});
 
+    const resetGame = useCallback(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const ch = canvas.height / dpr;
+        
+        const playerW = Math.min(120, (canvas.width / dpr) * 0.12);
+        playerRef.current = {
+            x: 120,
+            y: ch / 2,
+            w: playerW,
+            h: playerW * 0.75,
+            vel: 0,
+        };
+
+        pipesRef.current = [];
+        collectiblesRef.current = [];
+        particlesRef.current = [];
+        floatingTextsRef.current = [];
+        frameRef.current = 0;
+        windRef.current = { direction: 1, strength: 0.1, timer: 0 };
+        setScore(0);
+        setCoins(0);
+        setHasShield(false);
+        setSlowMo({ active: false, timer: 0 });
+        setDoubleScore({ active: false, timer: 0 });
+        setTimeLeft(60);
+        if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
+    }, []);
+
     useEffect(() => {
         if (user && !user.isAnonymous && userProfile) {
             setHighScore(userProfile.highScore || 0);
@@ -250,44 +281,10 @@ export default function GamePage() {
             resetGame();
             setGameState('ready');
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [imagesLoaded]);
+    }, [imagesLoaded, gameState, resetGame]);
 
-
-    const resetGame = useCallback(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const dpr = window.devicePixelRatio || 1;
-        const ch = canvas.height / dpr;
-        
-        const playerW = Math.min(120, (canvas.width / dpr) * 0.12);
-        playerRef.current = {
-            x: 120,
-            y: ch / 2,
-            w: playerW,
-            h: playerW * 0.75,
-            vel: 0,
-        };
-
-        pipesRef.current = [];
-        collectiblesRef.current = [];
-        particlesRef.current = [];
-        floatingTextsRef.current = [];
-        frameRef.current = 0;
-        windRef.current = { direction: 1, strength: 0.1, timer: 0 };
-        setScore(0);
-        setCoins(0);
-        setHasShield(false);
-        setSlowMo({ active: false, timer: 0 });
-        setDoubleScore({ active: false, timer: 0 });
-        setTimeLeft(60);
-        if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
-    }, []);
-    
     const startGame = useCallback(() => {
         if (!currentLevel || !imagesLoaded) return;
-        resetGame();
         setGameState('playing');
         audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
 
@@ -303,7 +300,7 @@ export default function GamePage() {
                 });
             }, 1000);
         }
-    }, [resetGame, currentLevel, imagesLoaded, gameMode]);
+    }, [currentLevel, imagesLoaded, gameMode]);
 
     const saveScoreToLeaderboard = useCallback(() => {
         if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || score === 0) return;
@@ -761,9 +758,8 @@ export default function GamePage() {
     };
 
     const handleRestart = () => {
-        if (gameState === 'over') {
-            startGame();
-        }
+        resetGame();
+        startGame();
     };
 
     const toggleMute = () => {
@@ -918,7 +914,7 @@ export default function GamePage() {
                                     </TableBody>
                                 </Table>
                             </CardContent>
-                            {!user || user.isAnonymous && (
+                            {(!user || user.isAnonymous) && (
                                 <CardFooter className="flex-col gap-2 pt-4">
                                      <p className="text-sm text-muted-foreground">Sign up to save your score!</p>
                                      <Button asChild>
