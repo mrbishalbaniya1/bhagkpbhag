@@ -107,13 +107,14 @@ const AdminPageContent: React.FC = () => {
                 body: cloudinaryFormData,
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to upload to Cloudinary');
-            }
-
             const cloudinaryData = await response.json();
-            const url = cloudinaryData.secure_url;
 
+            if (!response.ok) {
+                 const errorMessage = cloudinaryData?.error?.message || 'Failed to upload to Cloudinary';
+                 throw new Error(errorMessage);
+            }
+            
+            const url = cloudinaryData.secure_url;
             const updates = { [assetId]: { name: file.name, url } };
             
             const docSnap = await getDoc(gameAssetsRef);
