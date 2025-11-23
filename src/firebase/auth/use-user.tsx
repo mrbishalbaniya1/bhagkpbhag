@@ -1,8 +1,9 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useFirebase } from '@/firebase/provider';
+import { useFirebase, useMemoFirebase } from '@/firebase/provider';
+import { useDoc } from '@/firebase';
 import { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 
 export interface UserHookResult {
   user: any | null;
@@ -13,31 +14,23 @@ export interface UserHookResult {
 
 export const useUser = (): UserHookResult => {
   const { user, isUserLoading, userError, firestore } = useFirebase();
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (user && firestore) {
-        const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-        try {
-          const docSnap = await getDoc(adminRoleRef);
-          setIsAdmin(docSnap.exists());
-        } catch (error) {
-          console.error("Error checking admin status:", error);
-          setIsAdmin(false);
-        }
-      } else {
-        setIsAdmin(false);
-      }
-      setIsLoading(false);
-    };
-    if (!isUserLoading) {
-      checkAdminStatus();
+  const adminRoleRef = useMemoFirebase(() => {
+    if (user && firestore) {
+      return doc(firestore, 'roles_admin', user.uid);
     }
-  }, [user, isUserLoading, firestore]);
+    return null;
+  }, [user, firestore]);
+
+  const { data: adminRoleDoc, isLoading: isAdminLoading } = useDoc(adminRoleRef);
+
+  const [isAdmin, setIsAdmin] = useState(false);
   
+  useEffect(() => {
+    setIsAdmin(!!adminRoleDoc);
+  }, [adminRoleDoc]);
+
   useEffect(() => {
      if (!isUserLoading && user) {
       // If user is logged in, redirect from login page
@@ -47,5 +40,5 @@ export const useUser = (): UserHookResult => {
     }
   }, [user, isUserLoading, router]);
 
-  return { user, isAdmin, isUserLoading: isUserLoading || isLoading, userError };
+  return { user, isAdmin, isUserLoading: isUserLoading || isAdminLoading, userError };
 };
