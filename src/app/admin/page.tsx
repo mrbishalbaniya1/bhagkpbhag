@@ -86,14 +86,16 @@ const AdminPageContent: React.FC = () => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: name === 'name' ? value : Number(value) }));
     };
-
-    const handleAssetUpload = async (file: File | null, assetId: 'bg' | 'pipe' | 'player') => {
+    
+    const handleFileChange = (assetId: 'bg' | 'pipe' | 'player') => async (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (!file || !firestore || !gameAssetsRef) return;
 
         setUploadingStates(prev => ({ ...prev, [assetId]: true }));
         toast({ title: `Uploading ${assetId}...`, description: 'Please wait.' });
-
+        
         const storage = getStorage();
+
         try {
             const storageRef = ref(storage, `game_assets/${assetId}_${Date.now()}_${file.name}`);
             await uploadBytes(storageRef, file);
@@ -120,11 +122,6 @@ const AdminPageContent: React.FC = () => {
             if (input) input.value = '';
         }
     };
-    
-    const handleFileChange = (assetId: 'bg' | 'pipe' | 'player') => (e: ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
-        handleAssetUpload(file, assetId);
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -144,8 +141,8 @@ const AdminPageContent: React.FC = () => {
                     return;
                 }
                 const newLevelRef = doc(firestore, 'game_levels', newLevelId);
-                const newLevelData = { ...formData, id: newLevelId };
-                setDocumentNonBlocking(newLevelRef, newLevelData, {});
+                const newLevelData = { ...formData };
+                setDocumentNonBlocking(newLevelRef, newLevelData, { merge: true });
                 toast({ title: 'Success', description: 'Game level added successfully.' });
             }
             setIsDialogOpen(false);
@@ -195,7 +192,7 @@ const AdminPageContent: React.FC = () => {
                                 <Label htmlFor={`${assetKey}File`} className="capitalize text-lg">{assetKey} Image</Label>
                                 <div className='relative w-full h-40'>
                                 {gameAssets && gameAssets[assetKey]?.url ? (
-                                    <Image src={gameAssets[assetKey].url} alt={`Current ${assetKey}`} layout="fill" className="rounded-md border object-cover" />
+                                    <Image src={gameAssets[assetKey].url} alt={`Current ${assetKey}`} fill className="rounded-md border object-cover" />
                                 ) : <div className="w-full h-full flex items-center justify-center bg-muted rounded-md"><p className="text-sm text-muted-foreground">No custom image.</p></div>}
                                 </div>
                                 <Input id={`${assetKey}File`} type="file" accept="image/*" onChange={handleFileChange(assetKey)} disabled={uploadingStates[assetKey]}/>
@@ -208,7 +205,7 @@ const AdminPageContent: React.FC = () => {
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                    <Button onClick={() => setEditingLevel(null)}>Add New Level</Button>
+                    <Button onClick={() => { setEditingLevel(null); }}>Add New Level</Button>
                 </DialogTrigger>
                 <DialogContent>
                     <DialogHeader>
@@ -226,6 +223,7 @@ const AdminPageContent: React.FC = () => {
                                     type={key === 'name' ? 'text' : 'number'}
                                     className="col-span-3"
                                     required
+                                    disabled={key === 'id' && !!editingLevel}
                                 />
                             </div>
                         ))}
@@ -281,6 +279,5 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
-
 
     
