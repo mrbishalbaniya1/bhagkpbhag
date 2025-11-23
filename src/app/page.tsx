@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
-import { Loader2, Music, Music2, ShieldCheck, Trophy, Volume2, VolumeX } from 'lucide-react';
+import { Loader2, Music2, ShieldCheck, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
@@ -41,7 +41,7 @@ interface LeaderboardEntry {
 export default function GamePage() {
     const { user } = useUser();
     const firestore = useFirestore();
-    const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
+    const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'published_game_levels') : null, [firestore]);
     const { data: firebaseLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
 
     const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
@@ -193,7 +193,7 @@ export default function GamePage() {
 
 
     useEffect(() => {
-        if (firebaseLevels) {
+        if (firebaseLevels && firebaseLevels.length > 0) {
             const combinedLevels = [...defaultGameLevels];
             const defaultLevelIds = new Set(defaultGameLevels.map(l => l.id));
 
@@ -215,8 +215,11 @@ export default function GamePage() {
                 newCurrentLevel = combinedLevels.find(l => l.id === 'insane') || newCurrentLevel;
             }
             setCurrentLevel(newCurrentLevel);
+        } else if (!levelsLoading) {
+            setGameLevels(defaultGameLevels);
+            setCurrentLevel(defaultGameLevels[0]);
         }
-    }, [firebaseLevels, currentLevel.id, gameMode]);
+    }, [firebaseLevels, currentLevel.id, gameMode, levelsLoading]);
 
 
     useEffect(() => {

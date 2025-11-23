@@ -4,7 +4,7 @@ import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore, useUser, useCollection, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, doc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, doc, getDoc, arrayUnion, arrayRemove, writeBatch, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -45,6 +45,7 @@ const AdminPageContent: React.FC = () => {
     const { toast } = useToast();
 
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingLevel, setEditingLevel] = useState<GameLevel | null>(null);
     const [uploadingStates, setUploadingStates] = useState<{[key: string]: boolean}>({});
@@ -91,6 +92,42 @@ const AdminPageContent: React.FC = () => {
             });
         }
     }, [editingLevel]);
+    
+    const handlePublish = async () => {
+        if (!firestore) return;
+        setIsPublishing(true);
+        toast({ title: 'Publishing...', description: 'Applying changes to the live game.' });
+
+        try {
+            const batch = writeBatch(firestore);
+            
+            // 1. Get all draft levels
+            const draftLevelsSnapshot = await getDocs(collection(firestore, 'game_levels'));
+            const draftLevels = draftLevelsSnapshot.docs.map(d => ({ id: d.id, ...d.data() as GameLevelData }));
+
+            // 2. Clear out the old published levels
+            const publishedLevelsSnapshot = await getDocs(collection(firestore, 'published_game_levels'));
+            publishedLevelsSnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+
+            // 3. Add all draft levels to the published collection
+            draftLevels.forEach(level => {
+                const newPublishedRef = doc(firestore, 'published_game_levels', level.id);
+                batch.set(newPublishedRef, level);
+            });
+            
+            await batch.commit();
+
+            toast({ title: 'Success!', description: 'All draft game levels have been published.' });
+        } catch (error: any) {
+            console.error("Publishing error:", error);
+            toast({ variant: 'destructive', title: 'Publishing Failed', description: error.message });
+        } finally {
+            setIsPublishing(false);
+        }
+    };
+
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -177,7 +214,7 @@ const AdminPageContent: React.FC = () => {
             if (editingLevel) {
                 const levelRef = doc(firestore, 'game_levels', editingLevel.id);
                 updateDocumentNonBlocking(levelRef, formData);
-                toast({ title: 'Success', description: 'Game level updated successfully.' });
+                toast({ title: 'Success', description: 'Game level draft updated successfully.' });
             } else {
                 const newLevelId = formData.name.toLowerCase().replace(/\s/g, '-');
                  if (!newLevelId) {
@@ -188,7 +225,7 @@ const AdminPageContent: React.FC = () => {
                 const newLevelRef = doc(firestore, 'game_levels', newLevelId);
                 const newLevelData = { ...formData };
                 setDocumentNonBlocking(newLevelRef, newLevelData, { merge: true });
-                toast({ title: 'Success', description: 'Game level added successfully.' });
+                toast({ title: 'Success', description: 'Game level draft added successfully.' });
             }
             setIsDialogOpen(false);
             setEditingLevel(null);
@@ -203,7 +240,7 @@ const AdminPageContent: React.FC = () => {
         if (!firestore) return;
         const levelRef = doc(firestore, 'game_levels', levelId);
         deleteDocumentNonBlocking(levelRef);
-        toast({ title: 'Success', description: 'Game level deleted.' });
+        toast({ title: 'Success', description: 'Game level draft deleted.' });
     };
 
     const AssetUploadCard: React.FC<{assetId: keyof GameAssets, label: string, isUploading: boolean}> = ({ assetId, label, isUploading }) => (
@@ -326,11 +363,11 @@ const AdminPageContent: React.FC = () => {
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                    <Button onClick={() => { setEditingLevel(null); }}>Add New Level</Button>
+                    <Button onClick={() => { setEditingLevel(null); }}>Add New Level Draft</Button>
                 </DialogTrigger>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{editingLevel ? 'Edit Game Level' : 'Add New Game Level'}</DialogTitle>
+                        <DialogTitle>{editingLevel ? 'Edit Game Level Draft' : 'Add New Game Level Draft'}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="grid gap-4 py-4">
                         {Object.keys(formData).map(key => (
@@ -348,15 +385,22 @@ const AdminPageContent: React.FC = () => {
                             </div>
                         ))}
                         <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 className="animate-spin" /> : 'Save changes'}
+                            {isSubmitting ? <Loader2 className="animate-spin" /> : 'Save Draft'}
                         </Button>
                     </form>
                 </DialogContent>
             </Dialog>
 
             <Card className="mt-8">
-                <CardHeader>
-                    <CardTitle>Game Levels</CardTitle>
+                 <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Game Level Drafts</CardTitle>
+                        <p className="text-sm text-muted-foreground">These are your draft levels. Click "Publish Changes" to make them live.</p>
+                    </div>
+                    <Button onClick={handlePublish} disabled={isPublishing}>
+                        {isPublishing ? <Loader2 className="animate-spin mr-2" /> : null}
+                        Publish Changes
+                    </Button>
                 </CardHeader>
                 <CardContent>
                     <Table>

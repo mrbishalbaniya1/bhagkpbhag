@@ -13,8 +13,8 @@
  * - /users/{userId}/activities/{activityId}: Subcollection for user-specific events.
  * - /roles_admin/{userId}: A dedicated collection for managing admin privileges. The
  *   mere existence of a document here grants a user admin rights across the app.
- * - /game_levels/{gameLevelId}: Contains game configuration data, which is
- *   publicly readable by all users but can only be managed by administrators.
+ * - /game_levels/{gameLevelId}: Contains game configuration drafts. Only editable by admins.
+ * - /published_game_levels/{gameLevelId}: Contains the live game levels. Readable by all, but only writable via admin "publish" action (handled server-side/batch).
  * - /settings/admin: A singleton document for global app settings, only writable by admins.
  * - /settings/game_assets: A singleton for custom game image URLs. Writable by admins, readable by all.
  */
@@ -95,20 +95,33 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
-    // Game Levels (/game_levels)
+    // Game Levels (/game_levels - DRAFTS)
     // -------------------------------------------------------------------------
 
     /**
-     * @description Controls access to game level configurations.
+     * @description Controls access to DRAFT game level configurations.
      * @path /game_levels/{gameLevelId}
-     * @allow (read) Any user can read game levels.
-     * @allow (write) Only admins can manage game levels.
+     * @allow (read, write) Only admins can manage draft game levels.
      */
     match /game_levels/{gameLevelId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
     
+    // -------------------------------------------------------------------------
+    // Published Game Levels (/published_game_levels - LIVE)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Controls access to the PUBLISHED game level configurations.
+     * @path /published_game_levels/{gameLevelId}
+     * @allow (read) Any user can read the live game levels.
+     * @deny Client-side writes are forbidden. Publishing is handled by a batch write.
+     */
+    match /published_game_levels/{gameLevelId} {
+        allow read: if true;
+        allow write: if false; // CRITICAL: Prevent direct client-side edits to live levels.
+    }
+
     // -------------------------------------------------------------------------
     // Admin Settings (/settings)
     // -------------------------------------------------------------------------

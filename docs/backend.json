@@ -300,11 +300,27 @@
           "schema": {
             "$ref": "#/backend/entities/GameLevel"
           },
-          "description": "Stores game level configurations.",
+          "description": "Stores DRAFT game level configurations. These are not used in the live game.",
           "params": [
             {
               "name": "gameLevelId",
               "description": "Unique identifier for the game level."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/published_game_levels/{gameLevelId}",
+        "definition": {
+          "entityName": "GameLevel",
+          "schema": {
+            "$ref": "#/backend/entities/GameLevel"
+          },
+          "description": "Stores PUBLISHED game level configurations that are used in the live game.",
+          "params": [
+            {
+              "name": "gameLevelId",
+              "description": "Unique identifier for the published game level."
             }
           ]
         }
