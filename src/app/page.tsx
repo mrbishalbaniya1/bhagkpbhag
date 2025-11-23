@@ -8,7 +8,6 @@ import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collect
 import { Loader2, Music, Music2, ShieldCheck } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
-import Link from 'next/link';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -28,6 +27,8 @@ interface GameAssets {
     doubleScore?: GameAsset;
 }
 
+type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
+
 export default function GamePage() {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -45,6 +46,12 @@ export default function GamePage() {
     const [highScore, setHighScore] = useState(0);
     const [coins, setCoins] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
+
+    // Game Modes
+    const [gameMode, setGameMode] = useState<GameMode>('classic');
+    const [timeLeft, setTimeLeft] = useState(60);
+    const timeAttackIntervalRef = useRef<NodeJS.Timeout>();
+
 
     // Power-up states
     const [hasShield, setHasShield] = useState(false);
@@ -110,7 +117,6 @@ export default function GamePage() {
         const loadImages = async () => {
             try {
                 const imagePromises: Promise<any>[] = [];
-                const loadedImages: {[key:string]: HTMLImageElement} = {};
 
                 const addImagePromise = (url: string | undefined, ref: React.MutableRefObject<HTMLImageElement | undefined>) => {
                     if (url) {
@@ -183,10 +189,13 @@ export default function GamePage() {
             
             setGameLevels(combinedLevels);
             
-            const newCurrentLevel = combinedLevels.find(l => l.id === currentLevel.id) || combinedLevels[0];
+            let newCurrentLevel = combinedLevels.find(l => l.id === currentLevel.id) || combinedLevels[0];
+            if (gameMode === 'insane') {
+                newCurrentLevel = combinedLevels.find(l => l.id === 'insane') || newCurrentLevel;
+            }
             setCurrentLevel(newCurrentLevel);
         }
-    }, [firebaseLevels, currentLevel.id]);
+    }, [firebaseLevels, currentLevel.id, gameMode]);
 
 
     useEffect(() => {
@@ -232,6 +241,8 @@ export default function GamePage() {
         setHasShield(false);
         setSlowMo({ active: false, timer: 0 });
         setDoubleScore({ active: false, timer: 0 });
+        setTimeLeft(60);
+        if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
     }, []);
     
     const startGame = useCallback(() => {
@@ -239,16 +250,31 @@ export default function GamePage() {
         resetGame();
         setGameState('playing');
         audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
-    }, [resetGame, currentLevel, imagesLoaded]);
+
+        if (gameMode === 'timeAttack') {
+            timeAttackIntervalRef.current = setInterval(() => {
+                setTimeLeft(prev => {
+                    if (prev <= 1) {
+                        clearInterval(timeAttackIntervalRef.current);
+                        endGame();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+    }, [resetGame, currentLevel, imagesLoaded, gameMode]);
 
     const endGame = useCallback(() => {
         setGameState('over');
         audioRef.current?.pause();
-        if (score > highScore) {
+        if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
+
+        if (gameMode !== 'zen' && score > highScore) {
             setHighScore(score);
             localStorage.setItem("runKrishnaRun_high", score.toString());
         }
-    }, [score, highScore]);
+    }, [score, highScore, gameMode]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {
@@ -302,6 +328,11 @@ export default function GamePage() {
         const ch = canvas.height / dpr;
         let L = { ...currentLevel };
 
+        if (gameMode === 'insane') {
+            const insaneLevel = gameLevels.find(l => l.id === 'insane');
+            if (insaneLevel) L = insaneLevel;
+        }
+
         // Handle power-up effects
         if (slowMo.active) {
             L.speed *= 0.5;
@@ -322,7 +353,7 @@ export default function GamePage() {
         playerRef.current.vel += L.gravity;
         playerRef.current.y += playerRef.current.vel;
         
-        if (playerRef.current.y < 0 || playerRef.current.y + playerRef.current.h > ch) {
+        if ((playerRef.current.y < 0 || playerRef.current.y + playerRef.current.h > ch) && gameMode !== 'zen') {
             if (hasShield) {
                 setHasShield(false);
                 playerRef.current.y = Math.max(0, Math.min(playerRef.current.y, ch - playerRef.current.h));
@@ -336,36 +367,40 @@ export default function GamePage() {
             return (ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by);
         }
 
-        pipesRef.current.forEach(p => {
-            p.x -= p.speed;
+        if (gameMode !== 'zen') {
+            pipesRef.current.forEach(p => {
+                p.x -= p.speed;
 
-            // Oscillating pipes
-            if (p.oscillate) {
-                p.yOffset += p.direction * 0.5; // Oscillation speed
-                if (p.yOffset > 50 || p.yOffset < -50) {
-                    p.direction *= -1;
+                // Oscillating pipes
+                if (p.oscillate) {
+                    p.yOffset += p.direction * 0.5; // Oscillation speed
+                    if (p.yOffset > 50 || p.yOffset < -50) {
+                        p.direction *= -1;
+                    }
                 }
-            }
-            const topPipeY = 0 + (p.oscillate ? p.yOffset : 0);
-            const bottomPipeY = ch - p.bottom + (p.oscillate ? p.yOffset : 0);
+                const topPipeY = 0 + (p.oscillate ? p.yOffset : 0);
+                const bottomPipeY = ch - p.bottom + (p.oscillate ? p.yOffset : 0);
 
-            if (
-                rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, topPipeY, p.w, p.top) ||
-                rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, bottomPipeY, p.w, p.bottom)
-            ) {
-                 if (hasShield) {
-                    setHasShield(false);
-                    // Effectively removes the pipe from collision checks
-                    p.x = -p.w; 
-                } else {
-                    endGame();
+                if (
+                    rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, topPipeY, p.w, p.top) ||
+                    rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, bottomPipeY, p.w, p.bottom)
+                ) {
+                     if (hasShield) {
+                        setHasShield(false);
+                        // Effectively removes the pipe from collision checks
+                        p.x = -p.w; 
+                    } else {
+                        endGame();
+                    }
                 }
-            }
-            if (!p.passed && p.x + p.w < playerRef.current.x) {
-                p.passed = true;
-                setScore(s => s + (doubleScore.active ? 2 : 1));
-            }
-        });
+                if (!p.passed && p.x + p.w < playerRef.current.x) {
+                    p.passed = true;
+                    setScore(s => s + (doubleScore.active ? 2 : 1));
+                }
+            });
+        } else {
+            pipesRef.current.forEach(p => { p.x -= p.speed });
+        }
         
         collectiblesRef.current.forEach((c, i) => {
             c.x -= L.speed;
@@ -510,7 +545,7 @@ export default function GamePage() {
 
 
         gameLoopRef.current = requestAnimationFrame(gameLoop);
-    }, [currentLevel, endGame, slowMo, doubleScore, hasShield, handlePowerUpTimers]);
+    }, [currentLevel, endGame, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -537,6 +572,9 @@ export default function GamePage() {
         return () => {
             if (gameLoopRef.current) {
                 cancelAnimationFrame(gameLoopRef.current);
+            }
+            if (timeAttackIntervalRef.current) {
+                clearInterval(timeAttackIntervalRef.current);
             }
         };
     }, [gameState, gameLoop]);
@@ -587,6 +625,19 @@ export default function GamePage() {
         }
     }
     
+    const handleGameModeChange = (mode: GameMode) => {
+        setGameMode(mode);
+        if (mode === 'insane') {
+            const insaneLevel = gameLevels.find(l => l.id === 'insane');
+            if (insaneLevel) setCurrentLevel(insaneLevel);
+        } else {
+             const classicLevel = gameLevels.find(l => l.id === currentLevel.id) || gameLevels[0];
+             setCurrentLevel(classicLevel);
+        }
+        resetGame();
+        setGameState('ready');
+    };
+
     const handleRestart = () => {
         if (gameState === 'over') {
             resetGame();
@@ -617,7 +668,7 @@ export default function GamePage() {
             {gameState !== 'loading' && (
                 <>
                     <div className="absolute top-4 left-4 z-10 text-left text-foreground drop-shadow-lg">
-                        <div className="text-xl font-bold">Coins: {coins}</div>
+                        {gameMode !== 'zen' && <div className="text-xl font-bold">Coins: {coins}</div>}
                         <div className="flex gap-2 mt-1">
                           {hasShield && <ShieldCheck className="text-sky-400" />}
                           {slowMo.active && <span className="text-blue-400 font-bold">Slow!</span>}
@@ -625,8 +676,9 @@ export default function GamePage() {
                         </div>
                     </div>
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
-                        <div className="text-3xl font-bold">{score}</div>
-                        <div className="text-sm">High: {highScore}</div>
+                        {gameMode !== 'zen' && <div className="text-3xl font-bold">{score}</div>}
+                        {gameMode === 'classic' && <div className="text-sm">High: {highScore}</div>}
+                        {gameMode === 'timeAttack' && <div className="text-2xl font-bold text-destructive">Time: {timeLeft}</div>}
                     </div>
                 </>
             )}
@@ -642,22 +694,39 @@ export default function GamePage() {
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80">
                     <div className="bg-card/90 p-8 rounded-xl shadow-2xl text-center border w-full max-w-sm">
                         <h2 className="text-4xl font-bold text-destructive mb-2">Game Over</h2>
-                        <p className="text-lg text-muted-foreground mb-1">Your score: <span className="font-bold text-foreground">{score}</span></p>
-                        <p className="text-lg text-muted-foreground mb-4">Coins collected: <span className="font-bold text-foreground">{coins}</span></p>
+                        {gameMode !== 'zen' && (
+                            <>
+                                <p className="text-lg text-muted-foreground mb-1">Your score: <span className="font-bold text-foreground">{score}</span></p>
+                                <p className="text-lg text-muted-foreground mb-4">Coins collected: <span className="font-bold text-foreground">{coins}</span></p>
+                            </>
+                        )}
                         
                         <div className="space-y-4">
-                             <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id}>
+                            <Select onValueChange={(value: GameMode) => handleGameModeChange(value)} defaultValue={gameMode}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select mode" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="classic"><span className="capitalize">Classic</span></SelectItem>
+                                    <SelectItem value="timeAttack"><span className="capitalize">Time Attack</span></SelectItem>
+                                    <SelectItem value="zen"><span className="capitalize">Zen Mode</span></SelectItem>
+                                    <SelectItem value="insane"><span className="capitalize">Insane</span></SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                             <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id} disabled={gameMode === 'insane'}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select level" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {gameLevels?.map(l => (
+                                    {gameLevels?.filter(l => l.id !== 'insane').map(l => (
                                         <SelectItem key={l.id} value={l.id}>
                                             <span className="capitalize">{l.name}</span>
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
+
                             <Button size="lg" onClick={handleRestart} className="w-full">
                                 Restart
                             </Button>

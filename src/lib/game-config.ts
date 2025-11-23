@@ -1,4 +1,5 @@
 
+
 // This file is now deprecated as game levels are managed in Firestore.
 // The types are still useful for the game logic.
 
@@ -80,4 +81,13 @@ export const defaultGameLevels: GameLevel[] = [
         speed: 4.5,
         spawnRate: 70,
     },
+    {
+        id: 'insane',
+        name: 'Insane',
+        gravity: 0.6,
+        lift: -9,
+        gap: 180,
+        speed: 6,
+        spawnRate: 50,
+    }
 ];
