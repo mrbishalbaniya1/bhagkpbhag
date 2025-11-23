@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore, useUser, useCollection } from '@/firebase';
-import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { collection, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,7 +87,14 @@ const AdminPageContent: React.FC = () => {
                 toast({ title: 'Success', description: 'Game level updated successfully.' });
             } else {
                 const newLevelId = formData.name.toLowerCase().replace(/\s/g, '-');
-                addDocumentNonBlocking(collection(firestore, 'game_levels'), { ...formData, id: newLevelId });
+                if (!newLevelId) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Level name cannot be empty.' });
+                    setIsSubmitting(false);
+                    return;
+                }
+                const newLevelRef = doc(firestore, 'game_levels', newLevelId);
+                const newLevelData = { ...formData, id: newLevelId };
+                setDocumentNonBlocking(newLevelRef, newLevelData, {});
                 toast({ title: 'Success', description: 'Game level added successfully.' });
             }
             setIsDialogOpen(false);
@@ -204,3 +211,5 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
+
+    
