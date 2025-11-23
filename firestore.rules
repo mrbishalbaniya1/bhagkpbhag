@@ -59,14 +59,11 @@ service cloud.firestore {
       /**
        * @description Controls access to user profile documents.
        * @path /users/{userId}
-       * @allow A user can read their own profile.
-       * @allow A user can create their own profile.
-       * @deny A user cannot update or delete their profile after creation.
+       * @allow A user can manage their own profile document.
        * @deny A user cannot access another user's profile.
        */
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update, delete, list: if false;
+      allow read, write: if isOwner(userId);
+      allow list: if false;
 
       /**
        * @description Controls access to a user's activity log.

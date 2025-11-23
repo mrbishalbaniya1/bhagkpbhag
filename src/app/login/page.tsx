@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore } from '@/firebase';
-import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
+import { initiateEmailSignIn, initiateGoogleSignIn } from '@/firebase/non-blocking-login';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -65,6 +65,15 @@ export default function LoginPage() {
         });
     }
   };
+  
+  const handleGoogleSignIn = () => {
+    if (!auth || !firestore) return;
+    initiateGoogleSignIn(auth, firestore, toast);
+    toast({
+      title: 'Signing In with Google...',
+      description: 'Please follow the prompts.',
+    });
+  };
 
 
   return (
@@ -120,6 +129,9 @@ export default function LoginPage() {
              <Button variant="link" type="button" onClick={() => setIsSigningUp(!isSigningUp)}>
                 {isSigningUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
              </Button>
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} type="button">
+                Sign In with Google
+            </Button>
             <Button variant="outline" className="w-full" onClick={handleAnonymousSignIn} type="button">
               Continue as Guest
             </Button>

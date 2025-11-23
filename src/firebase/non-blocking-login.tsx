@@ -4,8 +4,10 @@ import {
   signInAnonymously,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from 'firebase/auth';
-import { Firestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Firestore, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { useToast } from '@/hooks/use-toast';
 
 interface SignUpOptions {
@@ -76,5 +78,39 @@ export function initiateEmailSignIn(
                 description: error.message || 'An unexpected error occurred.',
              });
         }
+    });
+}
+
+/** Initiate Google Sign-In and create user profile if new (non-blocking). */
+export function initiateGoogleSignIn(
+  authInstance: Auth,
+  firestore: Firestore,
+  toast: ReturnType<typeof useToast>['toast']
+): void {
+  const provider = new GoogleAuthProvider();
+  signInWithPopup(authInstance, provider)
+    .then(async (result) => {
+      const user = result.user;
+      const userProfileRef = doc(firestore, 'users', user.uid);
+      const docSnap = await getDoc(userProfileRef);
+
+      if (!docSnap.exists()) {
+        // This is a new user, so create their profile.
+        const userProfileData = {
+          displayName: user.displayName || 'Anonymous',
+          email: user.email,
+          createdAt: serverTimestamp(),
+        };
+        await setDoc(userProfileRef, userProfileData);
+      }
+      // Existing users just sign in.
+    })
+    .catch((error) => {
+      console.error("Google sign-in error:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Google Sign-In Failed',
+        description: error.message || 'Could not sign in with Google.',
+      });
     });
 }
