@@ -36,12 +36,7 @@ export default function GamePage() {
     const pipeImgRef = useRef<HTMLImageElement>();
     const playerImgRef = useRef<HTMLImageElement>();
 
-    useEffect(() => {
-        if (!levelsLoading && gameLevels && gameLevels.length > 0 && !currentLevel) {
-            setCurrentLevel(gameLevels.find(l => l.name.toLowerCase() === 'easy') || gameLevels[0]);
-        }
-    }, [gameLevels, levelsLoading, currentLevel]);
-
+    // Effect to load all game images
     useEffect(() => {
         const storedHigh = typeof window !== 'undefined' ? localStorage.getItem("runKrishnaRun_high") || "0" : "0";
         setHighScore(parseInt(storedHigh, 10));
@@ -88,13 +83,19 @@ export default function GamePage() {
         };
     }, []);
 
+    // Effect to set the initial game level once data is loaded
     useEffect(() => {
-        if(imagesLoaded && currentLevel) {
-            setGameState('ready');
-        } else {
-            setGameState('loading');
+        if (!levelsLoading && gameLevels && gameLevels.length > 0 && !currentLevel) {
+            setCurrentLevel(gameLevels.find(l => l.name.toLowerCase() === 'easy') || gameLevels[0]);
         }
-    }, [imagesLoaded, currentLevel]);
+    }, [gameLevels, levelsLoading, currentLevel]);
+
+    // Effect to transition from 'loading' to 'ready' state
+    useEffect(() => {
+        if (gameState === 'loading' && imagesLoaded && currentLevel) {
+            setGameState('ready');
+        }
+    }, [imagesLoaded, currentLevel, gameState]);
 
 
     const resetGame = useCallback(() => {
@@ -276,7 +277,7 @@ export default function GamePage() {
         }
     }
 
-    if (levelsLoading || gameState === 'loading' || !currentLevel) {
+    if (gameState === 'loading' || !currentLevel) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
