@@ -26,6 +26,10 @@ export interface Pipe {
   bottom: number;
   speed: number;
   passed: boolean;
+  oscillate: boolean;
+  yOffset: number;
+  direction: 1 | -1;
+  gap: number;
 }
 
 export interface Collectible {
@@ -67,5 +71,3 @@ export const defaultGameLevels: GameLevel[] = [
         spawnRate: 70,
     },
 ];
-
-    

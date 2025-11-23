@@ -52,6 +52,9 @@ export default function GamePage() {
     const [doubleScore, setDoubleScore] = useState<{active: boolean, timer: number}>({ active: false, timer: 0 });
     const POWERUP_DURATION = 300; // a value in frames, e.g., 300 frames is ~5 seconds at 60fps
 
+    // Dynamic Obstacles State
+    const windRef = useRef({ direction: 1, strength: 0.1, timer: 0 });
+
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const gameLoopRef = useRef<number>();
@@ -221,6 +224,7 @@ export default function GamePage() {
         pipesRef.current = [];
         collectiblesRef.current = [];
         frameRef.current = 0;
+        windRef.current = { direction: 1, strength: 0.1, timer: 0 };
         setScore(0);
         setCoins(0);
         setHasShield(false);
@@ -286,6 +290,17 @@ export default function GamePage() {
             L.speed *= 0.5;
             L.spawnRate *= 1.5;
         }
+
+        // Wind Effect
+        windRef.current.timer--;
+        if (windRef.current.timer <= 0) {
+            windRef.current.direction *= -1;
+            windRef.current.strength = Math.random() * 0.15 + 0.05; // Random strength
+            windRef.current.timer = Math.random() * 300 + 100; // Random duration
+        }
+        playerRef.current.x += windRef.current.strength * windRef.current.direction * (slowMo.active ? 0.5 : 1);
+        playerRef.current.x = Math.max(0, Math.min(playerRef.current.x, cw - playerRef.current.w));
+
         
         playerRef.current.vel += L.gravity;
         playerRef.current.y += playerRef.current.vel;
@@ -306,14 +321,25 @@ export default function GamePage() {
 
         pipesRef.current.forEach(p => {
             p.x -= p.speed;
+
+            // Oscillating pipes
+            if (p.oscillate) {
+                p.yOffset += p.direction * 0.5; // Oscillation speed
+                if (p.yOffset > 50 || p.yOffset < -50) {
+                    p.direction *= -1;
+                }
+            }
+            const topPipeY = 0 + (p.oscillate ? p.yOffset : 0);
+            const bottomPipeY = ch - p.bottom + (p.oscillate ? p.yOffset : 0);
+
             if (
-                rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, 0, p.w, p.top) ||
-                rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, ch - p.bottom, p.w, p.bottom)
+                rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, topPipeY, p.w, p.top) ||
+                rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, p.x, bottomPipeY, p.w, p.bottom)
             ) {
                  if (hasShield) {
                     setHasShield(false);
-                    // Instead of removing the pipe, we could make it passable for a moment
-                    p.x = -p.w; // Effectively removes the pipe from collision checks
+                    // Effectively removes the pipe from collision checks
+                    p.x = -p.w; 
                 } else {
                     endGame();
                 }
@@ -344,12 +370,18 @@ export default function GamePage() {
 
         frameRef.current++;
         if (frameRef.current % Math.round(L.spawnRate) === 0) {
-            const gap = L.gap;
+             // Random gap size
+            const gapVariation = (Math.random() - 0.5) * 50; // Varies gap by up to +/- 25px
+            const gap = L.gap + gapVariation;
+            
             const minTop = 90;
             const maxTop = ch - gap - 120;
             const topHeight = Math.floor(minTop + Math.random() * (maxTop - minTop));
             const pipeW = Math.min(140, Math.max(60, cw * 0.12));
             const randomPipeImg = pipeImgsRef.current[Math.floor(Math.random() * pipeImgsRef.current.length)];
+
+            // Decide if pipe oscillates
+            const willOscillate = Math.random() < 0.25; // 25% chance of being a moving pipe
 
             pipesRef.current.push({
                 x: cw + 30,
@@ -359,6 +391,10 @@ export default function GamePage() {
                 speed: L.speed,
                 passed: false,
                 img: randomPipeImg,
+                oscillate: willOscillate,
+                yOffset: 0,
+                direction: 1,
+                gap: gap,
             });
 
             // Spawn collectibles between pipes
@@ -400,8 +436,9 @@ export default function GamePage() {
         ctx.drawImage(bgImgRef.current, bgXRef.current + sw, 0, sw, sh);
 
         pipesRef.current.forEach(p => {
-            ctx.drawImage(p.img, p.x, 0, p.w, p.top);
-            ctx.drawImage(p.img, p.x, ch - p.bottom, p.w, p.bottom);
+            const yOffset = p.oscillate ? p.yOffset : 0;
+            ctx.drawImage(p.img, p.x, 0 + yOffset, p.w, p.top);
+            ctx.drawImage(p.img, p.x, ch - p.bottom + yOffset, p.w, p.bottom);
         });
         
         collectiblesRef.current.forEach(c => {
