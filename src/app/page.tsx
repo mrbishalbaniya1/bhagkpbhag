@@ -199,7 +199,7 @@ export default function GamePage() {
         if (!currentLevel) return;
         if (gameState === 'playing') {
             playerRef.current.vel = currentLevel.lift;
-        } else if ((gameState === 'ready' || gameState === 'over') && imagesLoaded) {
+        } else if (gameState === 'ready' && imagesLoaded) {
             startGame();
             playerRef.current.vel = currentLevel.lift;
         }
@@ -341,6 +341,12 @@ export default function GamePage() {
             }
         }
     }
+    
+    const handleRestart = () => {
+        if (gameState === 'over') {
+            startGame();
+        }
+    };
 
     if (gameState === 'loading' || !imagesLoaded) {
         return (
@@ -392,7 +398,7 @@ export default function GamePage() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button size="lg" variant="primary" onClick={jump} className="w-full">
+                            <Button size="lg" variant="primary" onClick={handleRestart} className="w-full">
                                 Restart
                             </Button>
                         </div>
