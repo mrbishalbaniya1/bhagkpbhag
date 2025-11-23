@@ -1,3 +1,22 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "game-bg",
+      "description": "A beautiful sky with clouds, serving as the game background.",
+      "imageUrl": "https://images.unsplash.com/photo-1612404748636-568ca4155994?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxza3klMjBjbG91ZHN8ZW58MHx8fHwxNzYzODE3NTU3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "sky clouds"
+    },
+    {
+      "id": "game-pipe",
+      "description": "A green pipe obstacle for the game.",
+      "imageUrl": "https://images.unsplash.com/photo-1741666688074-1a41202ecc0b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxncmVlbiUyMHBpcGV8ZW58MHx8fHwxNzYzOTExMTI0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "green pipe"
+    },
+    {
+      "id": "game-player",
+      "description": "The player character, Krishna, running.",
+      "imageUrl": "https://images.unsplash.com/photo-1614760395555-ed0db393cb79?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxydW5uaW5nJTIwZGVpdHl8ZW58MHx8fHwxNzYzOTExMTI0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "running deity"
+    }
+  ]
 }
