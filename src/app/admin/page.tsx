@@ -39,7 +39,7 @@ interface GameAssets {
 }
 
 const AdminPageContent: React.FC = () => {
-    const { user, isUserLoading } = useUser();
+    const { user, isAdmin, isUserLoading } = useUser();
     const auth = useAuth();
     const firestore = useFirestore();
     const router = useRouter();
@@ -51,7 +51,7 @@ const AdminPageContent: React.FC = () => {
     const [editingLevel, setEditingLevel] = useState<GameLevel | null>(null);
     const [uploadingStates, setUploadingStates] = useState<{[key: string]: boolean}>({});
 
-    const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
+    const gameLevelsRef = useMemoFirebase(() => firestore && isAdmin ? collection(firestore, 'game_levels') : null, [firestore, isAdmin]);
     const { data: gameLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
 
     const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
@@ -278,7 +278,7 @@ const AdminPageContent: React.FC = () => {
     );
 
 
-    if (isUserLoading || levelsLoading || assetsLoading) {
+    if (isUserLoading || (isAdmin && levelsLoading) || assetsLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -288,6 +288,16 @@ const AdminPageContent: React.FC = () => {
     
     if (!user) {
         return null;
+    }
+    
+    if (!isAdmin) {
+        return (
+             <div className="flex flex-col items-center justify-center min-h-screen">
+                <p className="text-2xl text-destructive font-bold">Access Denied</p>
+                <p className="text-muted-foreground mt-2">You do not have permission to view this page.</p>
+                <Button onClick={() => router.push('/')} className="mt-6">Go to Homepage</Button>
+            </div>
+        )
     }
 
     return (
