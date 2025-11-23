@@ -83,19 +83,19 @@ export default function GamePage() {
         };
     }, []);
 
-    // Effect to set the initial game level once data is loaded
+    // Effect to set the initial game level once data is loaded from Firestore
     useEffect(() => {
-        if (!levelsLoading && gameLevels && gameLevels.length > 0) {
+        if (!levelsLoading && gameLevels && gameLevels.length > 0 && !currentLevel) {
             setCurrentLevel(gameLevels.find(l => l.name.toLowerCase() === 'easy') || gameLevels[0]);
         }
-    }, [gameLevels, levelsLoading]);
+    }, [gameLevels, levelsLoading, currentLevel]);
 
-    // Effect to transition from 'loading' to 'ready' state
+    // Effect to transition from 'loading' to 'ready' state when both images and levels are loaded
     useEffect(() => {
-        if (imagesLoaded && currentLevel) {
+        if (gameState === 'loading' && imagesLoaded && currentLevel) {
             setGameState('ready');
         }
-    }, [imagesLoaded, currentLevel]);
+    }, [imagesLoaded, currentLevel, gameState]);
 
 
     const resetGame = useCallback(() => {
@@ -277,7 +277,7 @@ export default function GamePage() {
         }
     }
 
-    if (gameState === 'loading' || !currentLevel) {
+    if (gameState === 'loading') {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -289,7 +289,7 @@ export default function GamePage() {
         <main className="relative w-screen h-screen overflow-hidden bg-background font-body select-none">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
             
-            {gameState !== 'loading' && (
+            {gameState !== 'loading' && currentLevel && (
                 <>
                     <div className="absolute top-4 left-4 z-10 flex gap-2 items-center">
                          <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id}>
