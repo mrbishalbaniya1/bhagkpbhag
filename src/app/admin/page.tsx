@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore, useUser, useCollection, useDoc } from '@/firebase';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -89,8 +89,10 @@ const AdminPageContent: React.FC = () => {
         if (!file || !firestore || !gameAssetsRef) return;
         
         const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-        if (!cloudName) {
-            toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary cloud name is not configured.' });
+        const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
+
+        if (!cloudName || !apiKey) {
+            toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary configuration is missing.' });
             return;
         }
 
@@ -100,6 +102,7 @@ const AdminPageContent: React.FC = () => {
         const cloudinaryFormData = new FormData();
         cloudinaryFormData.append('file', file);
         cloudinaryFormData.append('upload_preset', 'ml_default');
+        cloudinaryFormData.append('api_key', apiKey);
 
         try {
             const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
@@ -291,5 +294,3 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
-
-    
