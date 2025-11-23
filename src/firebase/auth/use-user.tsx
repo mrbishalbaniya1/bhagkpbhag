@@ -34,11 +34,12 @@ export const useUser = (): UserHookResult => {
   useEffect(() => {
      // This effect runs only on the client, after hydration.
      // This prevents a server/client mismatch for the initial render.
+     if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+      return; // Do not run redirect logic on the login page
+     }
+
      if (!isUserLoading && user) {
-      // If user is logged in, redirect from login page.
-      if(window.location.pathname === '/login') {
-        router.push('/');
-      }
+      // If user is logged in, redirect from other pages if necessary
     }
   }, [user, isUserLoading, router]);
 
