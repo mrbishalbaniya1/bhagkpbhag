@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { levelSettings, type Level, type Player, type Pipe } from '@/lib/game-config';
 import { Loader2 } from 'lucide-react';
 
@@ -28,9 +28,10 @@ export default function GamePage() {
         const storedHigh = localStorage.getItem("runKrishnaRun_high") || "0";
         setHighScore(parseInt(storedHigh, 10));
 
-        const bg = PlaceHolderImages.find(p => p.id === 'game-bg');
-        const pipe = PlaceHolderImages.find(p => p.id === 'game-pipe');
-        const player = PlaceHolderImages.find(p => p.id === 'game-player');
+        const placeholderImages = getPlaceholderImages();
+        const bg = placeholderImages.find(p => p.id === 'game-bg');
+        const pipe = placeholderImages.find(p => p.id === 'game-pipe');
+        const player = placeholderImages.find(p => p.id === 'game-player');
 
         if (!bg || !pipe || !player) {
             console.error("Game assets not found in placeholder images.");
