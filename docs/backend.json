@@ -26,9 +26,7 @@
       },
       "required": [
         "id",
-        "username",
-        "email",
-        "isAdmin"
+        "email"
       ]
     },
     "GameLevel": {
@@ -75,6 +73,68 @@
         "speed",
         "spawnRate"
       ]
+    },
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's public profile.",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the user profile was created."
+        }
+      },
+      "required": [
+        "email"
+      ]
+    },
+    "Activity": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Activity",
+      "type": "object",
+      "description": "Represents a single activity or event performed by a user.",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "A description of the activity."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time when the activity occurred."
+        }
+      },
+      "required": [
+        "description",
+        "timestamp"
+      ]
+    },
+    "Settings": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Settings",
+      "type": "object",
+      "description": "Represents global application settings manageable by an admin.",
+      "properties": {
+        "maintenanceMode": {
+          "type": "boolean",
+          "description": "If true, the application is in maintenance mode."
+        },
+        "welcomeMessage": {
+          "type": "string",
+          "description": "A global welcome message for all users."
+        }
+      }
     }
   },
   "auth": {
@@ -88,11 +148,11 @@
       {
         "path": "/users/{userId}",
         "definition": {
-          "entityName": "User",
+          "entityName": "UserProfile",
           "schema": {
-            "$ref": "#/backend/entities/User"
+            "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores user data.  'userId' corresponds to Firebase Auth UID.",
+          "description": "Stores user profile data. 'userId' corresponds to Firebase Auth UID.",
           "params": [
             {
               "name": "userId",
@@ -102,11 +162,36 @@
         }
       },
       {
+        "path": "/users/{userId}/activities/{activityId}",
+        "definition": {
+          "entityName": "Activity",
+          "schema": {
+            "$ref": "#/backend/entities/Activity"
+          },
+          "description": "Stores a log of activities for a specific user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Auth UID of the user."
+            },
+            {
+              "name": "activityId",
+              "description": "The unique ID for the activity."
+            }
+          ]
+        }
+      },
+      {
         "path": "/roles_admin/{userId}",
         "definition": {
           "entityName": "roles_admin",
           "schema": {
-            "$ref": "#/backend/entities/User"
+            "type": "object",
+            "properties": {
+              "isAdmin": {
+                "type": "boolean"
+              }
+            }
           },
           "description": "Indicates admin privileges for a user. Existence of a document with the user's ID grants admin access.",
           "params": [
@@ -132,8 +217,18 @@
             }
           ]
         }
+      },
+      {
+        "path": "/settings/admin",
+        "definition": {
+          "entityName": "Settings",
+          "schema": {
+            "$ref": "#/backend/entities/Settings"
+          },
+          "description": "Singleton document to store global admin settings.",
+          "params": []
+        }
       }
-    ],
-    "reasoning": "This Firestore structure prioritizes security and scalability for the game application. It includes collections for user management (including admin roles) and game level configuration.\n\n**Authorization Independence:**\nAdmin status is managed via the `roles_admin` collection. The presence of a document in this collection for a given user ID grants admin privileges. This approach avoids the need for `get()` calls in security rules to verify admin status, ensuring authorization independence.\n\n**QAPs (Rules are not Filters):**\n*   **List Operation Security for Game Levels:** The `game_levels` collection stores all game level configurations. Security rules can easily restrict access to this collection based on admin status, since admin status does not depend on the content of the level itself.\n*   **Admin Role Management:** The `roles_admin` collection is separate from user data, allowing for efficient and secure management of admin roles. List operations are inherently secure because the rules only need to check for the existence of a document with the user's ID."
+    ]
   }
 }
