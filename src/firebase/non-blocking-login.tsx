@@ -6,6 +6,8 @@ import {
   signInWithEmailAndPassword,
   // Assume getAuth and app are initialized elsewhere
 } from 'firebase/auth';
+import { errorEmitter } from './error-emitter';
+import { FirestorePermissionError } from './errors';
 
 /** Initiate anonymous sign-in (non-blocking). */
 export function initiateAnonymousSignIn(authInstance: Auth): void {
@@ -23,7 +25,16 @@ export function initiateEmailSignUp(authInstance: Auth, email: string, password:
 
 /** Initiate email/password sign-in (non-blocking). */
 export function initiateEmailSignIn(authInstance: Auth, email: string, password: string): void {
-  // CRITICAL: Call signInWithEmailAndPassword directly. Do NOT use 'await signInWithEmailAndPassword(...)'.
-  signInWithEmailAndPassword(authInstance, email, password);
-  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
+  signInWithEmailAndPassword(authInstance, email, password)
+    .catch((error) => {
+        // If the user doesn't exist, create a new account.
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+            initiateEmailSignUp(authInstance, email, password);
+        } else {
+            // For other errors, you might want to handle them differently
+            // For now, we'll just log them. In a real app, you'd show a toast.
+            console.error("Sign-in error:", error);
+            // Optionally re-throw or handle as a global error
+        }
+    });
 }

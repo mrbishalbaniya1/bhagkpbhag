@@ -17,25 +17,20 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
-    try {
-      initiateEmailSignIn(auth, email, password);
-      // The onAuthStateChanged listener in FirebaseProvider will handle the redirect
-      // on successful login. We can show a pending toast here.
-       toast({
-        title: 'Signing In...',
-        description: 'Please wait while we verify your credentials.',
-      });
-    } catch (error: any) {
-      console.error('Sign-in error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Sign In Failed',
-        description: error.message || 'An unexpected error occurred.',
-      });
-    }
+
+    // We don't need a try-catch here anymore because the error is handled
+    // within initiateEmailSignIn.
+    initiateEmailSignIn(auth, email, password);
+    
+    // The onAuthStateChanged listener will handle redirects on success.
+    // We can show a toast to let the user know something is happening.
+    toast({
+      title: 'Signing In...',
+      description: 'Please wait while we verify your credentials. If your account does not exist, it will be created.',
+    });
   };
   
   const handleAnonymousSignIn = async () => {
@@ -64,7 +59,7 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Admin Login</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account.
+            Enter your email below to login. If the account doesn't exist, it will be created.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSignIn}>
@@ -92,7 +87,7 @@ export default function LoginPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full">Sign in</Button>
+            <Button type="submit" className="w-full">Sign in / Sign up</Button>
             <Button variant="outline" className="w-full" onClick={handleAnonymousSignIn} type="button">
               Continue as Guest
             </Button>
