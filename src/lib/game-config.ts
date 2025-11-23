@@ -51,6 +51,14 @@ export interface Particle {
   alpha: number;
 }
 
+export interface FloatingText {
+    x: number;
+    y: number;
+    text: string;
+    alpha: number;
+    vy: number;
+}
+
 
 // Default levels to use while Firestore is loading.
 export const defaultGameLevels: GameLevel[] = [

@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
-import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle } from '@/lib/game-config';
+import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
 import { Loader2, Music, Music2, ShieldCheck } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -62,6 +62,7 @@ export default function GamePage() {
     // Dynamic Obstacles State
     const windRef = useRef({ direction: 1, strength: 0.1, timer: 0 });
     const particlesRef = useRef<Particle[]>([]);
+    const floatingTextsRef = useRef<FloatingText[]>([]);
 
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -234,6 +235,7 @@ export default function GamePage() {
         pipesRef.current = [];
         collectiblesRef.current = [];
         particlesRef.current = [];
+        floatingTextsRef.current = [];
         frameRef.current = 0;
         windRef.current = { direction: 1, strength: 0.1, timer: 0 };
         setScore(0);
@@ -287,6 +289,16 @@ export default function GamePage() {
                 alpha: 1,
             });
         }
+    }, []);
+
+    const createFloatingText = useCallback((text: string) => {
+        floatingTextsRef.current.push({
+            text,
+            x: playerRef.current.x + playerRef.current.w / 2,
+            y: playerRef.current.y,
+            alpha: 1,
+            vy: -2,
+        });
     }, []);
 
     const jump = useCallback(() => {
@@ -395,7 +407,9 @@ export default function GamePage() {
                 }
                 if (!p.passed && p.x + p.w < playerRef.current.x) {
                     p.passed = true;
-                    setScore(s => s + (doubleScore.active ? 2 : 1));
+                    const points = doubleScore.active ? 2 : 1;
+                    setScore(s => s + points);
+                    createFloatingText(`+${points}`);
                 }
             });
         } else {
@@ -422,6 +436,15 @@ export default function GamePage() {
             p.alpha -= 0.03;
             if (p.alpha <= 0) {
                 particlesRef.current.splice(i, 1);
+            }
+        });
+
+        // Handle floating texts
+        floatingTextsRef.current.forEach((ft, i) => {
+            ft.y += ft.vy;
+            ft.alpha -= 0.03;
+            if (ft.alpha <= 0) {
+                floatingTextsRef.current.splice(i, 1);
             }
         });
 
@@ -518,6 +541,19 @@ export default function GamePage() {
             ctx.restore();
         });
 
+        // Draw floating texts
+        floatingTextsRef.current.forEach(ft => {
+            ctx.save();
+            ctx.globalAlpha = ft.alpha;
+            ctx.fillStyle = "white";
+            ctx.font = "bold 20px sans-serif";
+            ctx.textAlign = "center";
+            ctx.shadowColor = "black";
+            ctx.shadowBlur = 4;
+            ctx.fillText(ft.text, ft.x, ft.y);
+            ctx.restore();
+        });
+
         ctx.save();
         ctx.translate(playerRef.current.x + playerRef.current.w / 2, playerRef.current.y + playerRef.current.h / 2);
         const rotation = Math.atan(playerRef.current.vel / 15); // Enhanced rotation
@@ -545,7 +581,7 @@ export default function GamePage() {
 
 
         gameLoopRef.current = requestAnimationFrame(gameLoop);
-    }, [currentLevel, endGame, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels]);
+    }, [currentLevel, endGame, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -679,6 +715,7 @@ export default function GamePage() {
                         {gameMode !== 'zen' && <div className="text-3xl font-bold">{score}</div>}
                         {gameMode === 'classic' && <div className="text-sm">High: {highScore}</div>}
                         {gameMode === 'timeAttack' && <div className="text-2xl font-bold text-destructive">Time: {timeLeft}</div>}
+                         <div className="text-xs uppercase text-muted-foreground mt-1 tracking-wider">{currentLevel.name}</div>
                     </div>
                 </>
             )}
