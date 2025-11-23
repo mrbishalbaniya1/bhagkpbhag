@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore, useUser, useCollection, useDoc } from '@/firebase';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, doc, getDoc, addDoc } from 'firebase/firestore';
+import { collection, doc, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,11 +35,8 @@ const AdminPageContent: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingLevel, setEditingLevel] = useState<GameLevel | null>(null);
+    const [uploadingStates, setUploadingStates] = useState<{[key: string]: boolean}>({});
 
-    const [bgFile, setBgFile] = useState<File | null>(null);
-    const [pipeFile, setPipeFile] = useState<File | null>(null);
-    const [playerFile, setPlayerFile] = useState<File | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
 
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
     const { data: gameLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
@@ -89,69 +86,43 @@ const AdminPageContent: React.FC = () => {
         setFormData(prev => ({ ...prev, [name]: name === 'name' ? value : Number(value) }));
     };
 
-    const handleFileChange = (setter: React.Dispatch<React.SetStateAction<File | null>>) => (e: ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setter(e.target.files[0]);
-        }
-    };
+    const handleAssetUpload = async (file: File | null, assetId: 'bg' | 'pipe' | 'player') => {
+        if (!file || !firestore || !gameAssetsRef) return;
 
-    const handleAssetUpload = async () => {
-        if (!firestore || !gameAssetsRef) return;
-        
-        const filesToUpload = [
-            { file: bgFile, id: 'bg' },
-            { file: pipeFile, id: 'pipe' },
-            { file: playerFile, id: 'player' }
-        ].filter(item => item.file);
-
-        if (filesToUpload.length === 0) {
-            toast({ title: 'No files selected', description: 'Please select at least one file to upload.' });
-            return;
-        }
+        setUploadingStates(prev => ({ ...prev, [assetId]: true }));
+        toast({ title: `Uploading ${assetId}...`, description: 'Please wait.' });
 
         const storage = getStorage();
-        setIsUploading(true);
-        toast({ title: 'Uploading...', description: 'Please wait while assets are being uploaded.' });
-
         try {
-            const uploadPromises = filesToUpload.map(async ({ file, id }) => {
-                if(!file) return null;
-                const storageRef = ref(storage, `game_assets/${id}_${Date.now()}_${file.name}`);
-                await uploadBytes(storageRef, file);
-                const url = await getDownloadURL(storageRef);
-                return { [id]: { name: file.name, url } };
-            });
-    
-            const results = await Promise.all(uploadPromises);
-            const updates = results.reduce((acc, res) => ({ ...acc, ...res }), {});
-            
-            if (Object.keys(updates).length > 0) {
-                const docSnap = await getDoc(gameAssetsRef);
-                if (docSnap.exists()) {
-                    updateDocumentNonBlocking(gameAssetsRef, updates);
-                } else {
-                    setDocumentNonBlocking(gameAssetsRef, updates, {});
-                }
-                toast({ title: 'Success', description: 'Game assets updated successfully.' });
-            }
-    
-            // Clear file inputs
-            setBgFile(null);
-            setPipeFile(null);
-            setPlayerFile(null);
-            const bgInput = document.getElementById('bgFile') as HTMLInputElement;
-            if (bgInput) bgInput.value = '';
-            const pipeInput = document.getElementById('pipeFile') as HTMLInputElement;
-            if (pipeInput) pipeInput.value = '';
-            const playerInput = document.getElementById('playerFile') as HTMLInputElement;
-            if (playerInput) playerInput.value = '';
+            const storageRef = ref(storage, `game_assets/${assetId}_${Date.now()}_${file.name}`);
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
 
+            const updates = { [assetId]: { name: file.name, url } };
+
+            const docSnap = await getDoc(gameAssetsRef);
+            if (docSnap.exists()) {
+                updateDocumentNonBlocking(gameAssetsRef, updates);
+            } else {
+                setDocumentNonBlocking(gameAssetsRef, updates, {});
+            }
+
+            toast({ title: 'Success', description: `'${file.name}' uploaded for ${assetId}.` });
+        
         } catch (error: any) {
             console.error("Asset upload error:", error);
-            toast({ variant: 'destructive', title: 'Upload Error', description: error.message || 'Could not upload assets.' });
+            toast({ variant: 'destructive', title: 'Upload Error', description: error.message || `Could not upload ${assetId}.` });
         } finally {
-            setIsUploading(false);
+            setUploadingStates(prev => ({ ...prev, [assetId]: false }));
+            // Clear the specific file input
+            const input = document.getElementById(`${assetId}File`) as HTMLInputElement;
+            if (input) input.value = '';
         }
+    };
+    
+    const handleFileChange = (assetId: 'bg' | 'pipe' | 'player') => (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0] || null;
+        handleAssetUpload(file, assetId);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -166,14 +137,14 @@ const AdminPageContent: React.FC = () => {
                 toast({ title: 'Success', description: 'Game level updated successfully.' });
             } else {
                 const newLevelId = formData.name.toLowerCase().replace(/\s/g, '-');
-                if (!newLevelId) {
+                 if (!newLevelId) {
                     toast({ variant: 'destructive', title: 'Error', description: 'Level name cannot be empty.' });
                     setIsSubmitting(false);
                     return;
                 }
                 const newLevelRef = doc(firestore, 'game_levels', newLevelId);
                 const newLevelData = { ...formData, id: newLevelId };
-                setDocumentNonBlocking(newLevelRef, newLevelData, {});
+                setDocumentNonBlocking(newLevelRef, newLevelData, {merge: false});
                 toast({ title: 'Success', description: 'Game level added successfully.' });
             }
             setIsDialogOpen(false);
@@ -217,33 +188,20 @@ const AdminPageContent: React.FC = () => {
                     <CardTitle>Game Assets</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="grid md:grid-cols-3 gap-6">
-                        {gameAssets && ['bg', 'pipe', 'player'].map(assetKey => (
+                     <div className="grid md:grid-cols-3 gap-6">
+                        {(['bg', 'pipe', 'player'] as const).map(assetKey => (
                             <div key={assetKey} className="space-y-2">
-                                <Label className="capitalize">{assetKey} Image</Label>
-                                {gameAssets[assetKey as keyof typeof gameAssets]?.url ? (
-                                    <Image src={gameAssets[assetKey as keyof typeof gameAssets].url} alt={`Current ${assetKey}`} width={150} height={100} className="rounded-md border object-cover" />
-                                ) : <p className="text-sm text-muted-foreground">No custom image set.</p>}
+                                <Label htmlFor={`${assetKey}File`} className="capitalize text-lg">{assetKey} Image</Label>
+                                <div className='relative w-full h-40'>
+                                {gameAssets && gameAssets[assetKey]?.url ? (
+                                    <Image src={gameAssets[assetKey].url} alt={`Current ${assetKey}`} layout="fill" className="rounded-md border object-cover" />
+                                ) : <div className="w-full h-full flex items-center justify-center bg-muted rounded-md"><p className="text-sm text-muted-foreground">No custom image.</p></div>}
+                                </div>
+                                <Input id={`${assetKey}File`} type="file" accept="image/*" onChange={handleFileChange(assetKey)} disabled={uploadingStates[assetKey]}/>
+                                {uploadingStates[assetKey] && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
                             </div>
                         ))}
                     </div>
-                    <div className="grid md:grid-cols-3 gap-6">
-                        <div>
-                            <Label htmlFor="bgFile">Background Image</Label>
-                            <Input id="bgFile" type="file" accept="image/*" onChange={handleFileChange(setBgFile)} />
-                        </div>
-                        <div>
-                            <Label htmlFor="pipeFile">Pipe Image</Label>
-                            <Input id="pipeFile" type="file" accept="image/*" onChange={handleFileChange(setPipeFile)} />
-                        </div>
-                        <div>
-                            <Label htmlFor="playerFile">Player Image</Label>
-                            <Input id="playerFile" type="file" accept="image/*" onChange={handleFileChange(setPlayerFile)} />
-                        </div>
-                    </div>
-                    <Button onClick={handleAssetUpload} disabled={isUploading}>
-                        {isUploading ? <Loader2 className="animate-spin" /> : 'Upload Selected Assets'}
-                    </Button>
                 </CardContent>
             </Card>
             
