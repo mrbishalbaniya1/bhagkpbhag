@@ -107,15 +107,15 @@ service cloud.firestore {
     /**
      * @description Controls access to the admin role lookup collection.
      * @path /roles_admin/{userId}
-     * @allow (get) An admin can check if another user is an admin.
-     * @deny (get) A non-admin cannot read this collection.
+     * @allow (get) A user can check their own admin status. An admin can check any user's status.
+     * @deny (get) A non-admin cannot read another user's role.
      * @deny (create, update, delete) All client-side writes are forbidden to
      *       prevent privilege escalation. Admins must be created via the
      *       Firebase Console or a trusted server-side process.
      * @principle Secures role management by making it read-only from clients.
      */
     match /roles_admin/{userId} {
-      allow get: if isAdmin();
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if false; // CRITICAL: Prevent client-side privilege escalation.
       allow update: if false; // CRITICAL: Roles must not be mutable from the client.
