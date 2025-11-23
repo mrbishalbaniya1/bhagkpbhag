@@ -354,21 +354,9 @@ export default function GamePage() {
         <main className="relative w-screen h-screen overflow-hidden bg-background font-body select-none">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
             
-            {gameState !== 'loading' && currentLevel && (
+            {gameState !== 'loading' && (
                 <>
-                    <div className="absolute top-4 left-4 z-10 flex gap-2 items-center">
-                         <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id}>
-                            <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Select level" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {gameLevels?.map(l => (
-                                    <SelectItem key={l.id} value={l.id}>
-                                        <span className="capitalize">{l.name}</span>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                    <div className="absolute top-4 left-4 z-10">
                         {user && <Link href="/admin"><Button variant="secondary">Admin</Button></Link>}
                     </div>
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
@@ -385,18 +373,32 @@ export default function GamePage() {
                 </div>
             )}
 
-            {gameState === 'over' && (
+            {gameState === 'over' && currentLevel && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80">
-                    <div className="bg-card/90 p-8 rounded-xl shadow-2xl text-center border">
+                    <div className="bg-card/90 p-8 rounded-xl shadow-2xl text-center border w-full max-w-sm">
                         <h2 className="text-4xl font-bold text-destructive mb-2">Game Over</h2>
-                        <p className="text-lg text-muted-foreground mb-6">Your score: <span className="font-bold text-foreground">{score}</span></p>
-                        <Button size="lg" variant="primary" onClick={jump}>
-                            Restart
-                        </Button>
+                        <p className="text-lg text-muted-foreground mb-4">Your score: <span className="font-bold text-foreground">{score}</span></p>
+                        
+                        <div className="space-y-4">
+                             <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select level" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {gameLevels?.map(l => (
+                                        <SelectItem key={l.id} value={l.id}>
+                                            <span className="capitalize">{l.name}</span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Button size="lg" variant="primary" onClick={jump} className="w-full">
+                                Restart
+                            </Button>
+                        </div>
                     </div>
                 </div>
             )}
         </main>
     );
 }
-
