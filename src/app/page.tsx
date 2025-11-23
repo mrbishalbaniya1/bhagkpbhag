@@ -18,6 +18,7 @@ export default function GamePage() {
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
     const { data: gameLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
 
+    const [imagesLoaded, setImagesLoaded] = useState(false);
     const [gameState, setGameState] = useState<'loading' | 'ready' | 'playing' | 'over'>('loading');
     const [currentLevel, setCurrentLevel] = useState<GameLevel | null>(null);
     const [score, setScore] = useState(0);
@@ -36,13 +37,13 @@ export default function GamePage() {
     const playerImgRef = useRef<HTMLImageElement>();
 
     useEffect(() => {
-        if (gameLevels && gameLevels.length > 0 && !currentLevel) {
+        if (!levelsLoading && gameLevels && gameLevels.length > 0 && !currentLevel) {
             setCurrentLevel(gameLevels.find(l => l.name.toLowerCase() === 'easy') || gameLevels[0]);
         }
-    }, [gameLevels]);
+    }, [gameLevels, levelsLoading, currentLevel]);
 
     useEffect(() => {
-        const storedHigh = localStorage.getItem("runKrishnaRun_high") || "0";
+        const storedHigh = typeof window !== 'undefined' ? localStorage.getItem("runKrishnaRun_high") || "0" : "0";
         setHighScore(parseInt(storedHigh, 10));
 
         const placeholderImages = getPlaceholderImages();
@@ -55,6 +56,7 @@ export default function GamePage() {
             return;
         }
 
+        let isMounted = true;
         const loadImages = async () => {
             const bgImg = new Image();
             bgImg.src = bg.imageUrl;
@@ -69,18 +71,31 @@ export default function GamePage() {
                     pipeImg.decode(),
                     playerImg.decode(),
                 ]);
-                bgImgRef.current = bgImg;
-                pipeImgRef.current = pipeImg;
-                playerImgRef.current = playerImg;
-                if (gameState === 'loading') {
-                    setGameState('ready');
+                if (isMounted) {
+                    bgImgRef.current = bgImg;
+                    pipeImgRef.current = pipeImg;
+                    playerImgRef.current = playerImg;
+                    setImagesLoaded(true);
                 }
             } catch (error) {
                 console.error("Failed to load game images", error);
             }
         };
         loadImages();
-    }, [gameState]);
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if(imagesLoaded && currentLevel) {
+            setGameState('ready');
+        } else {
+            setGameState('loading');
+        }
+    }, [imagesLoaded, currentLevel]);
+
 
     const resetGame = useCallback(() => {
         const canvas = canvasRef.current;
