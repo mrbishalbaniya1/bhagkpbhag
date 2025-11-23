@@ -21,15 +21,14 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth) return;
 
-    // We don't need a try-catch here anymore because the error is handled
-    // within initiateEmailSignIn.
-    initiateEmailSignIn(auth, email, password);
+    // Pass the toast function to the sign-in handler
+    initiateEmailSignIn(auth, email, password, toast);
     
     // The onAuthStateChanged listener will handle redirects on success.
     // We can show a toast to let the user know something is happening.
     toast({
-      title: 'Signing In...',
-      description: 'Please wait while we verify your credentials. If your account does not exist, it will be created.',
+      title: 'Verifying...',
+      description: 'Please wait while we check your credentials.',
     });
   };
   
