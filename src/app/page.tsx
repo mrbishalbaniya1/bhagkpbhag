@@ -38,6 +38,8 @@ type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
 interface UserProfile {
     displayName: string;
     highScore?: number;
+    gameMode?: GameMode;
+    difficulty?: string;
 }
 
 interface LeaderboardEntry {
@@ -174,11 +176,14 @@ export default function GamePage() {
     useEffect(() => {
         if (user && !user.isAnonymous && userProfile) {
             setHighScore(userProfile.highScore || 0);
+            setGameMode(userProfile.gameMode || 'classic');
+            const userDifficulty = gameLevels.find(l => l.id === userProfile.difficulty) || gameLevels[0];
+            setCurrentLevel(userDifficulty);
         } else if (typeof window !== 'undefined') {
             const storedHigh = localStorage.getItem("BhagKpBhag_high") || "0";
             setHighScore(parseInt(storedHigh, 10));
         }
-    }, [user, userProfile]);
+    }, [user, userProfile, gameLevels]);
 
     useEffect(() => {
         if (assetsLoading) return;
@@ -737,30 +742,6 @@ export default function GamePage() {
         }
     }, [isMuted]);
 
-    const handleLevelChange = (levelId: string) => {
-        const newLevel = gameLevels?.find(l => l.id === levelId);
-        if (newLevel) {
-            setCurrentLevel(newLevel);
-            if(gameState === 'playing' || gameState === 'over') {
-               resetGame();
-               setGameState('ready');
-            }
-        }
-    }
-    
-    const handleGameModeChange = (mode: GameMode) => {
-        setGameMode(mode);
-        if (mode === 'insane') {
-            const insaneLevel = gameLevels.find(l => l.id === 'insane');
-            if (insaneLevel) setCurrentLevel(insaneLevel);
-        } else {
-             const classicLevel = gameLevels.find(l => l.id === currentLevel.id) || gameLevels[0];
-             setCurrentLevel(classicLevel);
-        }
-        resetGame();
-        setGameState('ready');
-    };
-
     const handleRestart = () => {
         resetGame();
         setGameState('ready');
@@ -811,13 +792,18 @@ export default function GamePage() {
             
             {gameState !== 'loading' && (
                 <>
-                    <div className="absolute top-4 left-4 z-10 text-left text-foreground drop-shadow-lg">
-                        {gameMode !== 'zen' && <div className="text-xl font-bold">Coins: {coins}</div>}
-                        <div className="flex gap-2 mt-1">
-                          {hasShield && <ShieldCheck className="text-sky-400" />}
-                          {slowMo.active && <span className="text-blue-400 font-bold">Slow!</span>}
-                          {doubleScore.active && <span className="text-yellow-400 font-bold">x2!</span>}
+                    <div className="absolute top-4 left-4 z-10 flex items-center gap-4 text-left text-foreground drop-shadow-lg">
+                        <div>
+                            {gameMode !== 'zen' && <div className="text-xl font-bold">Coins: {coins}</div>}
+                            <div className="flex gap-2 mt-1">
+                            {hasShield && <ShieldCheck className="text-sky-400" />}
+                            {slowMo.active && <span className="text-blue-400 font-bold">Slow!</span>}
+                            {doubleScore.active && <span className="text-yellow-400 font-bold">x2!</span>}
+                            </div>
                         </div>
+                        <Button variant="outline" size="icon" onClick={toggleMute} className="bg-background/50 border-foreground/50">
+                            {isMuted ? <VolumeX className="h-5 w-5"/> : <Volume2 className="h-5 w-5"/>}
+                        </Button>
                     </div>
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
                         {gameMode !== 'zen' && <div className="text-3xl font-bold">{score}</div>}
@@ -850,47 +836,13 @@ export default function GamePage() {
                                     </>
                                 )}
                                 <div className="space-y-4 mt-6">
-                                    <Select onValueChange={(value: GameMode) => handleGameModeChange(value)} defaultValue={gameMode}>
-                                        <SelectTrigger className="transition-transform duration-200 hover:scale-105">
-                                            <SelectValue placeholder="Select mode" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="classic"><span className="capitalize">Classic</span></SelectItem>
-                                            <SelectItem value="timeAttack"><span className="capitalize">Time Attack</span></SelectItem>
-                                            <SelectItem value="zen"><span className="capitalize">Zen Mode</span></SelectItem>
-                                            <SelectItem value="insane"><span className="capitalize">Insane</span></SelectItem>
-                                        </SelectContent>
-                                    </Select>
-        
-                                     <Select onValueChange={handleLevelChange} defaultValue={currentLevel.id} disabled={gameMode === 'insane'}>
-                                        <SelectTrigger className="transition-transform duration-200 hover:scale-105">
-                                            <SelectValue placeholder="Select level" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {gameLevels?.filter(l => l.id !== 'insane').map(l => (
-                                                <SelectItem key={l.id} value={l.id}>
-                                                    <span className="capitalize">{l.name}</span>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-        
                                     <Button size="lg" onClick={handleRestart} className="w-full transition-transform duration-200 hover:scale-105">
                                         Restart
                                     </Button>
-                                    <Button variant="outline" size="lg" onClick={toggleMute} className="w-full flex items-center gap-2 transition-transform duration-200 hover:scale-105">
-                                        {isMuted ? <VolumeX /> : <Volume2 />}
-                                        <span>{isMuted ? 'Unmute' : 'Mute'}</span>
-                                    </Button>
                                     {user && !user.isAnonymous && (
-                                        <>
-                                            <Button variant="ghost" size="lg" onClick={() => auth?.signOut()} className="w-full transition-transform duration-200 hover:scale-105">
-                                                Sign Out
-                                            </Button>
-                                             <Button variant="secondary" size="lg" asChild className="w-full transition-transform duration-200 hover:scale-105">
-                                                <Link href="/account">My Account</Link>
-                                            </Button>
-                                        </>
+                                        <Button variant="secondary" size="lg" asChild className="w-full transition-transform duration-200 hover:scale-105">
+                                            <Link href="/account">My Account</Link>
+                                        </Button>
                                     )}
                                 </div>
                              </CardContent>

@@ -35,13 +35,13 @@ export const useUser = (): UserHookResult => {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !isUserLoading) {
-      if (user && pathname === '/login') {
-        router.push('/');
-      } else if (!user && pathname.startsWith('/admin')) {
-        router.push('/login');
-      }
+        if (user && (pathname === '/login')) {
+            router.push('/');
+        } else if (!user && (pathname.startsWith('/admin') || pathname.startsWith('/account'))) {
+            router.push('/login');
+        }
     }
-  }, [user, isUserLoading, router, pathname]);
+}, [user, isUserLoading, router, pathname]);
 
   return { user, isAdmin, isUserLoading: isUserLoading || isAdminLoading, userError };
 };
