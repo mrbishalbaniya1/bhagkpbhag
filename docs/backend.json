@@ -165,6 +165,13 @@
             "name": {"type": "string"},
             "url": {"type": "string", "format": "uri"}
           }
+        },
+        "bgMusic": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "url": {"type": "string", "format": "uri"}
+          }
         }
       }
     }
@@ -275,5 +282,3 @@
     ]
   }
 }
-
-    

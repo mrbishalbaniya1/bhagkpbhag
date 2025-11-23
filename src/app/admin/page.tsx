@@ -28,6 +28,7 @@ interface GameAssets {
     bg?: GameAsset;
     player?: GameAsset;
     pipes?: GameAsset[];
+    bgMusic?: GameAsset;
 }
 
 const AdminPageContent: React.FC = () => {
@@ -90,15 +91,20 @@ const AdminPageContent: React.FC = () => {
         setFormData(prev => ({ ...prev, [name]: name === 'name' ? value : Number(value) }));
     };
 
-    const handleFileChange = (assetId: 'bg' | 'player' | 'pipes') => async (e: ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (assetId: 'bg' | 'player' | 'pipes' | 'bgMusic') => async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !firestore || !gameAssetsRef) return;
         
         const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
         const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
 
-        if (!cloudName || !apiKey) {
-            toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary configuration is missing.' });
+        if (!cloudName) {
+            toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary cloud name is not configured.' });
+            return;
+        }
+
+        if (!apiKey) {
+            toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary API key is not configured.' });
             return;
         }
 
@@ -109,20 +115,22 @@ const AdminPageContent: React.FC = () => {
         cloudinaryFormData.append('file', file);
         cloudinaryFormData.append('upload_preset', 'ml_default');
         cloudinaryFormData.append('api_key', apiKey);
+        
+        const resourceType = assetId === 'bgMusic' ? 'video' : 'image';
 
         try {
-            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
                 method: 'POST',
                 body: cloudinaryFormData,
             });
 
+            const cloudinaryData = await response.json();
+
             if (!response.ok) {
-                 const cloudinaryData = await response.json();
-                 const errorMessage = cloudinaryData?.error?.message || 'Failed to upload to Cloudinary. Check console for details.';
+                 const errorMessage = cloudinaryData?.error?.message || `Failed to upload to Cloudinary.`;
                  throw new Error(errorMessage);
             }
             
-            const cloudinaryData = await response.json();
             const newAsset = { name: file.name, url: cloudinaryData.secure_url };
             
             const docSnap = await getDoc(gameAssetsRef);
@@ -223,7 +231,7 @@ const AdminPageContent: React.FC = () => {
                     <CardTitle>Game Assets</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                     <div className="grid md:grid-cols-2 gap-8">
+                    <div className="grid md:grid-cols-3 gap-8">
                         {/* BG and Player */}
                         <div className="space-y-6">
                             {(['bg', 'player'] as const).map(assetKey => (
@@ -269,6 +277,18 @@ const AdminPageContent: React.FC = () => {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                        {/* Background Music */}
+                        <div className="space-y-2">
+                             <Label htmlFor="bgMusicFile" className="text-lg">Background Music</Label>
+                             {gameAssets?.bgMusic?.url && (
+                                 <div className="space-y-2">
+                                    <p className="text-sm text-muted-foreground truncate">Current: {gameAssets.bgMusic.name}</p>
+                                    <audio src={gameAssets.bgMusic.url} controls className="w-full" />
+                                 </div>
+                             )}
+                             <Input id="bgMusicFile" type="file" accept="audio/*" onChange={handleFileChange('bgMusic')} disabled={uploadingStates['bgMusic']}/>
+                            {uploadingStates['bgMusic'] && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
                         </div>
                     </div>
                 </CardContent>
@@ -350,5 +370,3 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
-
-    

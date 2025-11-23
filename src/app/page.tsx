@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels } from '@/lib/game-config';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Music, Music2 } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -21,6 +21,7 @@ interface GameAssets {
     bg?: GameAsset;
     player?: GameAsset;
     pipes?: GameAsset[];
+    bgMusic?: GameAsset;
 }
 
 export default function GamePage() {
@@ -38,9 +39,11 @@ export default function GamePage() {
     const [currentLevel, setCurrentLevel] = useState<GameLevel>(defaultGameLevels[0]);
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
+    const [isMuted, setIsMuted] = useState(false);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const gameLoopRef = useRef<number>();
+    const audioRef = useRef<HTMLAudioElement>(null);
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
     const pipesRef = useRef<(Pipe & { img: HTMLImageElement })[]>([]);
@@ -185,10 +188,12 @@ export default function GamePage() {
         if (!currentLevel || !imagesLoaded) return;
         resetGame();
         setGameState('playing');
+        audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
     }, [resetGame, currentLevel, imagesLoaded]);
 
     const endGame = useCallback(() => {
         setGameState('over');
+        audioRef.current?.pause();
         if (score > highScore) {
             setHighScore(score);
             localStorage.setItem("runKrishnaRun_high", score.toString());
@@ -318,7 +323,16 @@ export default function GamePage() {
     useEffect(() => {
         const handleInput = (e: Event) => {
             e.preventDefault();
-            if (e.key && e.key !== ' ' && e.key !== 'Enter') return;
+            
+            // Don't register clicks if they are on a button or select dropdown
+            if (e.target instanceof HTMLElement && (e.target.closest('button') || e.target.closest('[data-radix-collection-item]'))) {
+                return;
+            }
+
+            if (e.type === 'keydown') {
+                const keyEvent = e as KeyboardEvent;
+                if (keyEvent.key !== ' ' && keyEvent.key !== 'Enter') return;
+            }
             jump();
         };
         
@@ -330,6 +344,12 @@ export default function GamePage() {
             window.removeEventListener('keydown', handleInput);
         };
     }, [jump]);
+
+    useEffect(() => {
+        if(audioRef.current){
+            audioRef.current.muted = isMuted;
+        }
+    }, [isMuted]);
 
     const handleLevelChange = (levelId: string) => {
         const newLevel = gameLevels?.find(l => l.id === levelId);
@@ -343,9 +363,15 @@ export default function GamePage() {
     }
     
     const handleRestart = () => {
+        // This function is now only called by the button click
         if (gameState === 'over') {
+            resetGame();
             startGame();
         }
+    };
+
+    const toggleMute = () => {
+        setIsMuted(!isMuted);
     };
 
     if (gameState === 'loading' || !imagesLoaded) {
@@ -360,10 +386,19 @@ export default function GamePage() {
         <main className="relative w-screen h-screen overflow-hidden bg-background font-body select-none">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
             
+            {gameAssets?.bgMusic?.url && (
+                <audio ref={audioRef} src={gameAssets.bgMusic.url} loop playsInline />
+            )}
+            
             {gameState !== 'loading' && (
                 <>
-                    <div className="absolute top-4 left-4 z-10">
+                    <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
                         {user && <Link href="/admin"><Button variant="secondary">Admin</Button></Link>}
+                        {gameAssets?.bgMusic?.url && (
+                            <Button variant="secondary" size="icon" onClick={toggleMute}>
+                                {isMuted ? <Music2 /> : <Music />}
+                            </Button>
+                        )}
                     </div>
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
                         <div className="text-3xl font-bold">{score}</div>
@@ -398,7 +433,7 @@ export default function GamePage() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button size="lg" variant="primary" onClick={handleRestart} className="w-full">
+                            <Button size="lg" onClick={handleRestart} className="w-full">
                                 Restart
                             </Button>
                         </div>
