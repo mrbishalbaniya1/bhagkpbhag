@@ -1,3 +1,4 @@
+
 'use client';
 import {
   Auth,
@@ -32,6 +33,7 @@ export function initiateEmailSignUp(authInstance: Auth, email: string, password:
             displayName: options.displayName,
             email: user.email,
             createdAt: serverTimestamp(),
+            highScore: 0,
         };
         
         // This is a non-blocking write.
@@ -100,6 +102,7 @@ export function initiateGoogleSignIn(
           displayName: user.displayName || 'Anonymous',
           email: user.email,
           createdAt: serverTimestamp(),
+          highScore: 0,
         };
         await setDoc(userProfileRef, userProfileData);
       }

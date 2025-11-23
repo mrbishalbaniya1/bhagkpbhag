@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
 import { Loader2, Music2, ShieldCheck, Trophy, Volume2, VolumeX } from 'lucide-react';
-import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,6 +33,11 @@ interface GameAssets {
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
 
+interface UserProfile {
+    displayName: string;
+    highScore?: number;
+}
+
 interface LeaderboardEntry {
     id: string;
     displayName: string;
@@ -53,7 +58,7 @@ export default function GamePage() {
     const { data: gameAssets, isLoading: assetsLoading } = useDoc<GameAssets>(gameAssetsRef);
     
     const userProfileRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-    const { data: userProfile } = useDoc<{displayName: string}>(userProfileRef);
+    const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
     
     const leaderboardRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'leaderboard'), orderBy('score', 'desc'), limit(10)) : null, [firestore]);
     const { data: leaderboard, isLoading: leaderboardLoading } = useCollection<LeaderboardEntry>(leaderboardRef);
@@ -104,14 +109,17 @@ export default function GamePage() {
     const playerImgRef = useRef<HTMLImageElement>();
     const collectibleImgsRef = useRef<{[key: string]: HTMLImageElement}>({});
 
-
     useEffect(() => {
-        if (assetsLoading) return;
-
-        if (typeof window !== 'undefined') {
+        if (user && userProfile) {
+            setHighScore(userProfile.highScore || 0);
+        } else if (typeof window !== 'undefined') {
             const storedHigh = localStorage.getItem("runKrishnaRun_high") || "0";
             setHighScore(parseInt(storedHigh, 10));
         }
+    }, [user, userProfile]);
+
+    useEffect(() => {
+        if (assetsLoading) return;
 
         const placeholderImages = getPlaceholderImages();
         
@@ -201,15 +209,12 @@ export default function GamePage() {
     useEffect(() => {
         if (firebaseLevels && firebaseLevels.length > 0) {
             const combinedLevels = [...defaultGameLevels];
-            const defaultLevelIds = new Set(defaultGameLevels.map(l => l.id));
 
             firebaseLevels.forEach(fbLevel => {
                 const existingIndex = combinedLevels.findIndex(l => l.id === fbLevel.id);
                 if (existingIndex !== -1) {
-                    // Update existing default level with remote data
                     combinedLevels[existingIndex] = fbLevel;
                 } else {
-                    // Add new custom level
                     combinedLevels.push(fbLevel);
                 }
             });
@@ -336,12 +341,16 @@ export default function GamePage() {
         if (gameMode !== 'zen') {
              if (score > highScore) {
                 setHighScore(score);
-                localStorage.setItem("runKrishnaRun_high", score.toString());
+                if (user && firestore && userProfileRef) {
+                    updateDocumentNonBlocking(userProfileRef, { highScore: score });
+                } else {
+                    localStorage.setItem("runKrishnaRun_high", score.toString());
+                }
             }
             saveScoreToLeaderboard();
             logGameEvent();
         }
-    }, [score, highScore, gameMode, saveScoreToLeaderboard, logGameEvent]);
+    }, [score, highScore, gameMode, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {

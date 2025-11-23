@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { signInAnonymously } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -35,7 +35,6 @@ export default function LoginPage() {
         });
         return;
       }
-      // Pass firestore and displayName to the sign-in handler for user profile creation
       initiateEmailSignIn(auth, email, password, toast, { firestore, displayName });
     } else {
       initiateEmailSignIn(auth, email, password, toast);

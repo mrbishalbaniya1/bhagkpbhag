@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -93,6 +94,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The timestamp when the user profile was created."
+        },
+        "highScore": {
+            "type": "number",
+            "description": "The user's highest score."
         }
       },
       "required": [
@@ -445,5 +450,3 @@
     ]
   }
 }
-
-    
