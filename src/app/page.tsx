@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
 import { Loader2, Music2, ShieldCheck, Trophy, Volume2, VolumeX } from 'lucide-react';
-import { useUser, useFirestore, useCollection, useDoc } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking } from '@/firebase';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -299,6 +299,23 @@ export default function GamePage() {
         localStorage.setItem("runKrishnaRun_leaderboard", JSON.stringify(updatedLeaderboard));
     };
 
+    const logGameEvent = useCallback(() => {
+        if (!firestore || !user) return;
+        
+        const isMobile = window.innerWidth < 768;
+        const eventData = {
+            userId: user.uid,
+            score: score,
+            difficulty: currentLevel.name,
+            timestamp: serverTimestamp(),
+            deviceType: isMobile ? 'mobile' : 'desktop',
+        };
+
+        const eventsCollection = collection(firestore, 'game_events');
+        addDocumentNonBlocking(eventsCollection, eventData);
+
+    }, [firestore, user, score, currentLevel]);
+
     const endGame = useCallback(() => {
         setGameState('over');
         audioRef.current?.pause();
@@ -311,8 +328,9 @@ export default function GamePage() {
                 localStorage.setItem("runKrishnaRun_high", score.toString());
             }
             updateLeaderboard(score);
+            logGameEvent();
         }
-    }, [score, highScore, gameMode, leaderboard]);
+    }, [score, highScore, gameMode, leaderboard, logGameEvent]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {

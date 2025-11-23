@@ -17,6 +17,7 @@
  * - /published_game_levels/{gameLevelId}: Contains the live game levels. Readable by all, but only writable via admin "publish" action (handled server-side/batch).
  * - /settings/admin: A singleton document for global app settings, only writable by admins.
  * - /settings/game_assets: A singleton for custom game image URLs. Writable by admins, readable by all.
+ * - /game_events/{eventId}: Stores analytics data for game sessions. Writable by any signed-in user, readable only by admins.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -120,6 +121,23 @@ service cloud.firestore {
     match /published_game_levels/{gameLevelId} {
         allow get, list: if true;
         allow write: if false; // CRITICAL: Prevent direct client-side edits to live levels.
+    }
+    
+    // -------------------------------------------------------------------------
+    // Analytics (/game_events)
+    // -------------------------------------------------------------------------
+    
+    /**
+     * @description Controls access to the analytics game events.
+     * @path /game_events/{eventId}
+     * @allow (create) Any signed-in user can create a game event.
+     * @allow (read, list) Only admins can read the analytics data.
+     * @deny Updates and deletes are not allowed to ensure data integrity.
+     */
+    match /game_events/{eventId} {
+      allow create: if isSignedIn();
+      allow read, list: if isAdmin();
+      allow update, delete: if false;
     }
 
     // -------------------------------------------------------------------------

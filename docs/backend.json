@@ -226,6 +226,37 @@
           }
         }
       }
+    },
+    "GameEvent": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "GameEvent",
+        "type": "object",
+        "description": "Represents an analytics event from a game session.",
+        "properties": {
+            "userId": {
+                "type": "string",
+                "description": "The UID of the user who triggered the event."
+            },
+            "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The time the event occurred."
+            },
+            "score": {
+                "type": "number",
+                "description": "The final score of the game."
+            },
+            "difficulty": {
+                "type": "string",
+                "description": "The difficulty level played."
+            },
+            "deviceType": {
+                "type": "string",
+                "enum": ["desktop", "mobile"],
+                "description": "The type of device the game was played on."
+            }
+        },
+        "required": ["userId", "timestamp", "score", "difficulty"]
     }
   },
   "auth": {
@@ -345,6 +376,22 @@
             },
             "description": "Singleton document for storing URLs of custom uploaded game assets.",
             "params": []
+        }
+      },
+      {
+        "path": "/game_events/{eventId}",
+        "definition": {
+            "entityName": "GameEvent",
+            "schema": {
+                "$ref": "#/backend/entities/GameEvent"
+            },
+            "description": "Stores analytics events for game sessions.",
+            "params": [
+                {
+                    "name": "eventId",
+                    "description": "The unique ID for the game event."
+                }
+            ]
         }
       }
     ]
