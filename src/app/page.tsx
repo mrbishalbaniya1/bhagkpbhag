@@ -119,14 +119,29 @@ export default function GamePage() {
 
 
     useEffect(() => {
-        if (firebaseLevels && firebaseLevels.length > 0) {
-            setGameLevels(firebaseLevels);
-            const remoteLevel = firebaseLevels.find(l => l.id === currentLevel.id);
-            if (remoteLevel) {
-                setCurrentLevel(remoteLevel);
-            }
+        if (firebaseLevels) {
+            const combinedLevels = [...defaultGameLevels];
+            const defaultLevelIds = new Set(defaultGameLevels.map(l => l.id));
+
+            firebaseLevels.forEach(fbLevel => {
+                if (!defaultLevelIds.has(fbLevel.id)) {
+                    combinedLevels.push(fbLevel);
+                } else {
+                    // Update existing default level with remote data
+                    const index = combinedLevels.findIndex(l => l.id === fbLevel.id);
+                    if (index !== -1) {
+                        combinedLevels[index] = fbLevel;
+                    }
+                }
+            });
+            
+            setGameLevels(combinedLevels);
+            
+            const newCurrentLevel = combinedLevels.find(l => l.id === currentLevel.id) || combinedLevels[0];
+            setCurrentLevel(newCurrentLevel);
         }
     }, [firebaseLevels, currentLevel.id]);
+
 
     useEffect(() => {
         if (!levelsLoading && !assetsLoading) {
@@ -385,4 +400,3 @@ export default function GamePage() {
     );
 }
 
-    
