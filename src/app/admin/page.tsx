@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
@@ -6,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore, useUser, useCollection, useDoc } from '@/firebase';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { collection, doc, getDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -37,7 +35,6 @@ const AdminPageContent: React.FC = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingLevel, setEditingLevel] = useState<GameLevel | null>(null);
     const [uploadingStates, setUploadingStates] = useState<{[key: string]: boolean}>({});
-
 
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'game_levels') : null, [firestore]);
     const { data: gameLevels, isLoading: levelsLoading } = useCollection<GameLevel>(gameLevelsRef);
@@ -86,23 +83,39 @@ const AdminPageContent: React.FC = () => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: name === 'name' ? value : Number(value) }));
     };
-    
+
     const handleFileChange = (assetId: 'bg' | 'pipe' | 'player') => async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !firestore || !gameAssetsRef) return;
+        
+        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+        if (!cloudName) {
+            toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary cloud name is not configured.' });
+            return;
+        }
 
         setUploadingStates(prev => ({ ...prev, [assetId]: true }));
         toast({ title: `Uploading ${assetId}...`, description: 'Please wait.' });
-        
-        const storage = getStorage();
+
+        const cloudinaryFormData = new FormData();
+        cloudinaryFormData.append('file', file);
+        cloudinaryFormData.append('upload_preset', 'ml_default');
 
         try {
-            const storageRef = ref(storage, `game_assets/${assetId}_${Date.now()}_${file.name}`);
-            await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(storageRef);
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+                method: 'POST',
+                body: cloudinaryFormData,
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to upload to Cloudinary');
+            }
+
+            const cloudinaryData = await response.json();
+            const url = cloudinaryData.secure_url;
 
             const updates = { [assetId]: { name: file.name, url } };
-
+            
             const docSnap = await getDoc(gameAssetsRef);
             if (docSnap.exists()) {
                 updateDocumentNonBlocking(gameAssetsRef, updates);
@@ -111,9 +124,9 @@ const AdminPageContent: React.FC = () => {
             }
 
             toast({ title: 'Success', description: `'${file.name}' uploaded for ${assetId}.` });
-        
+
         } catch (error: any) {
-            console.error("Asset upload error:", error);
+            console.error("Cloudinary upload error:", error);
             toast({ variant: 'destructive', title: 'Upload Error', description: error.message || `Could not upload ${assetId}.` });
         } finally {
             setUploadingStates(prev => ({ ...prev, [assetId]: false }));
@@ -121,7 +134,7 @@ const AdminPageContent: React.FC = () => {
             if (input) input.value = '';
         }
     };
-
+    
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!firestore) return;
