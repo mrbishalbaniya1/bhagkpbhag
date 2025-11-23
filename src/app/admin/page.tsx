@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, ChangeEvent } from 'react';
@@ -157,6 +158,12 @@ const AdminPageContent: React.FC = () => {
         }
         
         const resourceType = ['bgMusic', 'jumpSound', 'collisionSound'].includes(assetId) ? 'video' : 'image';
+
+        if (resourceType === 'image') {
+            cloudinaryFormData.append('transformation', 'w_1920,q_auto:good');
+        } else {
+            cloudinaryFormData.append('transformation', 'br_128k');
+        }
 
         try {
             const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
@@ -443,3 +450,5 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
+
+    
