@@ -60,11 +60,14 @@ service cloud.firestore {
        * @description Controls access to user profile documents.
        * @path /users/{userId}
        * @allow (read, create) A user can create and read their own profile.
-       * @allow (update) A user can update their own highScore.
+       * @allow (update) A user can update their own highScore or displayName.
        * @deny A user cannot access another user's profile.
        */
       allow read, create: if isOwner(userId);
-      allow update: if isOwner(userId) && request.resource.data.highScore >= resource.data.highScore;
+      allow update: if isOwner(userId) && (
+          (request.resource.data.highScore >= resource.data.highScore && request.resource.data.displayName == resource.data.displayName) || 
+          (request.resource.data.displayName != resource.data.displayName && request.resource.data.highScore == resource.data.highScore)
+      );
       allow list, delete: if false;
 
       /**

@@ -3,7 +3,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useDoc } from '@/firebase';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,7 @@ import { useMemoFirebase } from '@/firebase/provider';
 interface UserProfile {
     displayName: string;
     email: string;
+    highScore: number;
 }
 
 export default function AccountPage() {
@@ -52,10 +54,23 @@ export default function AccountPage() {
             });
             return;
         }
+        
+        if (displayName.trim() === userProfile?.displayName) {
+             toast({
+                title: 'No Changes',
+                description: 'Your username is already set to that.',
+            });
+            return;
+        }
 
         setIsUpdating(true);
         try {
-            await updateDocumentNonBlocking(userProfileRef, { displayName });
+            // We must include the highScore to pass security rules
+            const updateData = { 
+                displayName: displayName.trim(),
+                highScore: userProfile?.highScore || 0
+            };
+            updateDocumentNonBlocking(userProfileRef, updateData);
             toast({
                 title: 'Success!',
                 description: 'Your profile has been updated.',
