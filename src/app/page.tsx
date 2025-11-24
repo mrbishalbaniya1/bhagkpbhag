@@ -380,13 +380,13 @@ export default function GamePage() {
         if(totalGames >= 100 && !currentAchievements.includes('veteran-player')) newAchievements.push('veteran-player');
 
         const totalXp = (userProfile?.xp || 0) + currentScore;
-        const currentLevel = userProfile?.level || 1;
+        const currentLvl = userProfile?.level || 1;
         const newLevel = Math.floor(totalXp / XP_PER_LEVEL) + 1;
 
         const eventData = {
             userId: user.uid,
             score: currentScore,
-            difficulty: currentLevel.name,
+            difficulty: currentLevel?.name || 'normal',
             timestamp: serverTimestamp(),
             deviceType: isMobile ? 'mobile' : 'desktop',
             gamesPlayed: increment(1)
@@ -397,7 +397,7 @@ export default function GamePage() {
                 gamesPlayed: increment(1),
                 xp: increment(currentScore),
             };
-            if(newLevel > currentLevel) profileUpdate.level = newLevel;
+            if(newLevel > currentLvl) profileUpdate.level = newLevel;
             if(newAchievements.length > 0) profileUpdate.achievements = arrayUnion(...newAchievements);
             
             updateDocumentNonBlocking(userProfileRef, profileUpdate);
@@ -862,7 +862,6 @@ export default function GamePage() {
             const finalCoins = coinsRef.current;
             const currentHighScore = highScoreRef.current;
             
-            // This is the critical fix: update state BEFORE changing gameState
             setScore(finalScore);
             setCoins(finalCoins);
 
