@@ -12,11 +12,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { GameLevel } from '@/lib/game-config';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/provider';
 import Image from 'next/image';
+import { Slider } from '@/components/ui/slider';
 
 type GameLevelData = Omit<GameLevel, 'id'>;
 
@@ -59,11 +61,11 @@ const AdminPageContent: React.FC = () => {
 
     const [formData, setFormData] = useState<GameLevelData>({
         name: '',
-        gravity: 0,
-        lift: 0,
-        gap: 0,
-        speed: 0,
-        spawnRate: 0,
+        gravity: 0.4,
+        lift: -7,
+        gap: 220,
+        speed: 3.5,
+        spawnRate: 80,
     });
     
     useEffect(() => {
@@ -85,11 +87,11 @@ const AdminPageContent: React.FC = () => {
         } else {
              setFormData({
                 name: '',
-                gravity: 0,
-                lift: 0,
-                gap: 0,
-                speed: 0,
-                spawnRate: 0,
+                gravity: 0.4,
+                lift: -7,
+                gap: 220,
+                speed: 3.5,
+                spawnRate: 80,
             });
         }
     }, [editingLevel]);
@@ -102,17 +104,14 @@ const AdminPageContent: React.FC = () => {
         try {
             const batch = writeBatch(firestore);
             
-            // 1. Get all draft levels
             const draftLevelsSnapshot = await getDocs(collection(firestore, 'game_levels'));
             const draftLevels = draftLevelsSnapshot.docs.map(d => ({ id: d.id, ...d.data() as GameLevelData }));
 
-            // 2. Clear out the old published levels
             const publishedLevelsSnapshot = await getDocs(collection(firestore, 'published_game_levels'));
             publishedLevelsSnapshot.forEach(doc => {
                 batch.delete(doc.ref);
             });
 
-            // 3. Add all draft levels to the published collection
             draftLevels.forEach(level => {
                 const newPublishedRef = doc(firestore, 'published_game_levels', level.id);
                 batch.set(newPublishedRef, level);
@@ -133,6 +132,10 @@ const AdminPageContent: React.FC = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: name === 'name' ? value : Number(value) }));
+    };
+    
+    const handleSliderChange = (name: keyof GameLevelData) => (value: number[]) => {
+        setFormData(prev => ({ ...prev, [name]: value[0] }));
     };
 
     const handleFileChange = (assetId: keyof GameAssets) => async (e: ChangeEvent<HTMLInputElement>) => {
@@ -331,13 +334,28 @@ const AdminPageContent: React.FC = () => {
                                                 <div className="relative w-full h-24">
                                                     <Image src={pipe.url} alt={pipe.name} fill className="rounded-md border object-cover" />
                                                 </div>
-                                                <Button
-                                                    variant="destructive"
-                                                    size="icon"
-                                                    className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={() => handleDeletePipeImage(pipe)}>
-                                                    <Trash2 size={14} />
-                                                </Button>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="icon"
+                                                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Trash2 size={14} />
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action cannot be undone. This will permanently delete the pipe image '{pipe.name}'.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeletePipeImage(pipe)}>Delete</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
                                              </div>
                                         ))}
                                     </div>
@@ -390,20 +408,41 @@ const AdminPageContent: React.FC = () => {
                         <DialogTitle>{editingLevel ? 'Edit Game Level Draft' : 'Add New Game Level Draft'}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-                        {Object.keys(formData).map(key => (
-                            <div className="grid grid-cols-4 items-center gap-4" key={key}>
-                                <Label htmlFor={key} className="text-right capitalize">{key.replace(/([A-Z])/g, ' $1')}</Label>
-                                <Input
-                                    id={key}
-                                    name={key}
-                                    value={formData[key as keyof GameLevelData]}
-                                    onChange={handleInputChange}
-                                    type={key === 'name' ? 'text' : 'number'}
-                                    className="col-span-3"
-                                    required
-                                />
-                            </div>
-                        ))}
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="name" className="text-right">Name</Label>
+                            <Input id="name" name="name" value={formData.name} onChange={handleInputChange} className="col-span-3" required />
+                        </div>
+                        
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="gravity" className="text-right">Gravity</Label>
+                            <Slider id="gravity" name="gravity" min={0.1} max={1} step={0.05} value={[formData.gravity]} onValueChange={handleSliderChange('gravity')} className="col-span-2" />
+                            <span className="col-span-1 text-sm text-muted-foreground">{formData.gravity.toFixed(2)}</span>
+                        </div>
+
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="lift" className="text-right">Lift</Label>
+                            <Slider id="lift" name="lift" min={-15} max={-5} step={0.5} value={[formData.lift]} onValueChange={handleSliderChange('lift')} className="col-span-2" />
+                             <span className="col-span-1 text-sm text-muted-foreground">{formData.lift.toFixed(1)}</span>
+                        </div>
+
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="gap" className="text-right">Gap</Label>
+                            <Slider id="gap" name="gap" min={150} max={300} step={10} value={[formData.gap]} onValueChange={handleSliderChange('gap')} className="col-span-2" />
+                            <span className="col-span-1 text-sm text-muted-foreground">{formData.gap}</span>
+                        </div>
+
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="speed" className="text-right">Speed</Label>
+                            <Slider id="speed" name="speed" min={1} max={10} step={0.5} value={[formData.speed]} onValueChange={handleSliderChange('speed')} className="col-span-2" />
+                            <span className="col-span-1 text-sm text-muted-foreground">{formData.speed.toFixed(1)}</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="spawnRate" className="text-right">Spawn Rate</Label>
+                            <Slider id="spawnRate" name="spawnRate" min={30} max={150} step={5} value={[formData.spawnRate]} onValueChange={handleSliderChange('spawnRate')} className="col-span-2" />
+                            <span className="col-span-1 text-sm text-muted-foreground">{formData.spawnRate}</span>
+                        </div>
+                        
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting ? <Loader2 className="animate-spin" /> : 'Save Draft'}
                         </Button>
@@ -464,5 +503,4 @@ const AdminPage = () => {
 
 export default AdminPage;
 
-    
     
