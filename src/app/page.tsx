@@ -372,17 +372,23 @@ export default function GamePage() {
         }
     }, [levelsLoading, assetsLoading]);
 
-    const playCommentary = useCallback(async () => {
+    const playCommentary = useCallback(async (isNewHighScore: boolean) => {
         if (areSfxMuted) return;
-        try {
-            const randomPhrase = commentaryPhrases[Math.floor(Math.random() * commentaryPhrases.length)];
-            const { audioDataUri } = await generateCommentary({ phrase: randomPhrase });
 
+        // Only play special commentary for new high scores to avoid rate limits
+        const phrase = isNewHighScore
+            ? "उत्कृष्ट! नयाँ उच्च स्कोर!" // "Excellent! New high score!"
+            : commentaryPhrases[Math.floor(Math.random() * commentaryPhrases.length)];
+
+        try {
+            const { audioDataUri } = await generateCommentary({ phrase });
             if (commentaryAudioRef.current) {
                 commentaryAudioRef.current.src = audioDataUri;
                 commentaryAudioRef.current.play().catch(e => console.error("Commentary audio play failed:", e));
             }
         } catch (error) {
+            // Log the error but don't crash the game.
+            // This can happen if the API key is missing or due to rate limits.
             console.error('Failed to generate or play commentary:', error);
         }
     }, [areSfxMuted]);
@@ -402,7 +408,7 @@ export default function GamePage() {
     }, [firestore, user, userProfile, currentLevel.name, gameMode]);
 
     const logGameEvent = useCallback((currentScore: number) => {
-        if (!firestore || !user) return;
+        if (!firestore || !user || !currentLevel) return;
         
         const isMobile = window.innerWidth < 768;
         const newAchievements: AchievementId[] = [];
@@ -422,7 +428,7 @@ export default function GamePage() {
         const eventData = {
             userId: user.uid,
             score: currentScore,
-            difficulty: currentLevel?.name || 'normal',
+            difficulty: currentLevel.name,
             timestamp: serverTimestamp(),
             deviceType: isMobile ? 'mobile' : 'desktop',
             gamesPlayed: increment(1)
@@ -904,12 +910,13 @@ export default function GamePage() {
             setCoins(finalCoins);
             
             if (gameMode !== 'zen') {
+                const isNewHighScore = finalScore > currentHighScore;
                 const lastGameSummary = {
                     score: finalScore,
                     coins: finalCoins,
                     difficulty: currentLevel.name,
                 };
-                 if (finalScore > currentHighScore) {
+                 if (isNewHighScore) {
                     setHighScore(finalScore);
                     if (user && !user.isAnonymous && firestore && userProfileRef) {
                         updateDocumentNonBlocking(userProfileRef, { highScore: finalScore, lastGame: lastGameSummary });
@@ -921,9 +928,8 @@ export default function GamePage() {
                 }
                 saveScoreToLeaderboard(finalScore);
                 logGameEvent(finalScore);
+                playCommentary(isNewHighScore);
             }
-
-            playCommentary();
             
             setLeaderboardPage(0);
             setGameState('over');
