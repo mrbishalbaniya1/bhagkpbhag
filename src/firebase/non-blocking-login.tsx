@@ -9,11 +9,12 @@ import {
   signInWithPopup,
   UserCredential,
 } from 'firebase/auth';
-import { Firestore, doc, setDoc, serverTimestamp, getDoc, collection, getDocs } from 'firebase/firestore';
+import { Firestore, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { useToast } from '@/hooks/use-toast';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { generateUsername } from '@/ai/flows/generate-username-flow';
 
 interface SignUpOptions {
     firestore: Firestore;
@@ -30,9 +31,11 @@ export async function initiateEmailSignUp(authInstance: Auth, email: string, pas
   const user = userCredential.user;
   const userProfileRef = doc(options.firestore, 'users', user.uid);
   
-  // Use email as the initial display name. User can change it later.
+  // Generate a unique username
+  const { username } = await generateUsername({ usedUsernames: [] });
+  
   const userProfileData = {
-      displayName: user.email,
+      displayName: username,
       email: user.email,
       createdAt: serverTimestamp(),
       highScore: 0,
@@ -106,9 +109,11 @@ export async function initiateGoogleSignIn(
     const docSnap = await getDoc(userProfileRef);
 
     if (!docSnap.exists()) {
-      // Use email as initial display name
+      // Generate a unique username
+      const { username } = await generateUsername({ usedUsernames: [] });
+      
       const userProfileData = {
-        displayName: user.email,
+        displayName: username,
         email: user.email,
         createdAt: serverTimestamp(),
         highScore: 0,
@@ -150,5 +155,3 @@ export async function initiateGoogleSignIn(
     }
   }
 }
-
-    

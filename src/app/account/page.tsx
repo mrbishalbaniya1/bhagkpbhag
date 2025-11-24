@@ -18,7 +18,6 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Image from 'next/image';
-import { generateUsername } from '@/ai/flows/generate-username-flow';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 import { useCollection } from '@/firebase';
 import { Slider } from '@/components/ui/slider';
@@ -91,7 +90,6 @@ export default function AccountPage() {
 
     const [displayName, setDisplayName] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
-    const [isGeneratingUsername, setIsGeneratingUsername] = useState(false);
     const [gameMode, setGameMode] = useState<GameMode>('classic');
     const [difficulty, setDifficulty] = useState('easy');
     const [gameLevels, setGameLevels] = useState<GameLevel[]>(defaultGameLevels);
@@ -151,22 +149,6 @@ export default function AccountPage() {
         const newVolume = value[0];
         setSfxVolume(newVolume);
         localStorage.setItem('bhagkp-sfx-volume', String(newVolume));
-    };
-    
-    const handleGenerateUsername = async () => {
-        if (!firestore) return;
-        setIsGeneratingUsername(true);
-        try {
-            // This is the problematic line that violates security rules.
-            // We will pass an empty array to the AI flow instead.
-            const result = await generateUsername({ usedUsernames: [] });
-            setDisplayName(result.username);
-            toast({ title: "Username Generated!", description: `New username: ${result.username}` });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not generate a new username.' });
-        } finally {
-            setIsGeneratingUsername(false);
-        }
     };
     
     const handleAvatarUpload = async () => {
@@ -355,7 +337,6 @@ export default function AccountPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="displayName">Username</Label>
-                                    <div className="flex gap-2">
                                     <Input
                                         id="displayName"
                                         type="text"
@@ -363,10 +344,6 @@ export default function AccountPage() {
                                         onChange={(e) => setDisplayName(e.target.value)}
                                         placeholder="Enter your new username"
                                     />
-                                     <Button type="button" variant="outline" onClick={handleGenerateUsername} disabled={isGeneratingUsername}>
-                                        {isGeneratingUsername ? <Loader2 className="h-4 w-4 animate-spin" /> : 'AI'}
-                                    </Button>
-                                    </div>
                                 </div>
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
