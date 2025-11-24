@@ -59,45 +59,31 @@ export async function initiateEmailSignIn(
     password: string, 
     toast: ReturnType<typeof useToast>['toast'],
     router: AppRouterInstance,
-    signUpOptions?: SignUpOptions
 ): Promise<void> {
-  toast({ title: signUpOptions ? 'Creating account...' : 'Verifying...', description: 'Please wait.' });
+  toast({ title: 'Verifying...', description: 'Please wait.' });
   try {
     await signInWithEmailAndPassword(authInstance, email, password);
     toast({ title: 'Success!', description: 'You are now signed in.' });
     router.push('/');
   } catch (error: any) {
-      if (error.code === 'auth/user-not-found' && signUpOptions) {
-          try {
-              await initiateEmailSignUp(authInstance, email, password, signUpOptions);
-              toast({ title: 'Account Created!', description: 'You are now signed in.' });
-              router.push('/');
-          } catch (signUpError: any) {
-              console.error("Sign-up error:", signUpError);
-              toast({
-                  variant: 'destructive',
-                  title: 'Sign Up Failed',
-                  description: signUpError.message || 'Could not create your account.',
-              });
-          }
-      } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
            toast({
               variant: 'destructive',
               title: 'Sign In Failed',
               description: 'The email or password you entered is incorrect.',
            });
-      } else if (error.code === 'auth/email-already-in-use') {
+      } else if (error.code === 'auth/operation-not-allowed') {
           toast({
               variant: 'destructive',
-              title: 'Sign Up Failed',
-              description: 'An account with this email already exists.',
+              title: 'Sign In Failed',
+              description: 'Email/Password sign-in is not enabled for this app.',
           });
       } else {
-          console.error("Sign-in/up error:", error);
+          console.error("Sign-in error:", error);
            toast({
               variant: 'destructive',
               title: 'An Error Occurred',
-              description: error.message || 'An unexpected error occurred.',
+              description: error.message || 'An unexpected error occurred during sign-in.',
            });
       }
   }
@@ -137,6 +123,12 @@ export async function initiateGoogleSignIn(
         title: 'Sign-in cancelled',
         description: 'You closed the Google Sign-In window.',
       });
+    } else if (error.code === 'auth/operation-not-allowed') {
+        toast({
+            variant: 'destructive',
+            title: 'Sign In Failed',
+            description: 'Google Sign-In is not enabled for this app.',
+        });
     } else {
       console.error("Google sign-in error:", error);
       toast({

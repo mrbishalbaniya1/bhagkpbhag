@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore } from '@/firebase';
-import { initiateEmailSignIn, initiateGoogleSignIn } from '@/firebase/non-blocking-login';
+import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { signInAnonymously } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
+import { initiateGoogleSignIn } from '@/firebase/non-blocking-login';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -30,7 +31,33 @@ export default function LoginPage() {
     setIsLoading(true);
 
     if (isSigningUp) {
-      await initiateEmailSignIn(auth, email, password, toast, router, { firestore });
+        toast({ title: 'Creating account...', description: 'Please wait.' });
+        try {
+            await initiateEmailSignUp(auth, email, password, { firestore });
+            toast({ title: 'Account Created!', description: 'You are now signed in.' });
+            router.push('/');
+        } catch (error: any) {
+            console.error("Sign-up error:", error);
+            if (error.code === 'auth/email-already-in-use') {
+                toast({
+                    variant: 'destructive',
+                    title: 'Sign Up Failed',
+                    description: 'An account with this email already exists. Please sign in.',
+                });
+            } else if (error.code === 'auth/operation-not-allowed') {
+                 toast({
+                    variant: 'destructive',
+                    title: 'Sign Up Failed',
+                    description: 'Email/Password sign-up is not enabled. Please contact an admin.',
+                });
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Sign Up Failed',
+                    description: error.message || 'Could not create your account.',
+                });
+            }
+        }
     } else {
       await initiateEmailSignIn(auth, email, password, toast, router);
     }
@@ -61,22 +88,25 @@ export default function LoginPage() {
   };
   
   const handleGoogleSignIn = async () => {
-    if (!auth || !firestore || isLoading) return;
+    if (!auth_regular || !firestore || isLoading) return;
     setIsLoading(true);
-    await initiateGoogleSignIn(auth, firestore, toast, router);
+    await initiateGoogleSignIn(auth_regular, firestore, toast, router);
     setIsLoading(false);
   };
+
+  // Prevent renaming auth to auth_regular from breaking the code.
+  const auth_regular = auth;
 
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">{isSigningUp ? 'Create an Account' : 'Admin Login'}</CardTitle>
+          <CardTitle className="text-2xl">{isSigningUp ? 'Create an Account' : 'Sign In'}</CardTitle>
           <CardDescription>
             {isSigningUp 
               ? 'Enter your email and password to create an account. A unique username will be generated for you.' 
-              : "Enter your email below to login. New users will be prompted to sign up."}
+              : "Enter your email and password to sign in to your account."}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleAuthAction}>
