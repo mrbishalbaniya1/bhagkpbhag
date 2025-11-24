@@ -1,11 +1,10 @@
-
 'use client';
 
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useAuth } from '@/firebase';
+import { useUser, useFirestore, useDoc, useAuth, useCollection } from '@/firebase';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { doc, collection, increment } from 'firebase/firestore';
+import { doc, collection, increment, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -396,5 +395,3 @@ export default function AccountPage() {
         </div>
     );
 }
-
-    
