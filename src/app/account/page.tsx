@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Volume2, VolumeX } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/provider';
 import { GameLevel, defaultGameLevels } from '@/lib/game-config';
 import { Progress } from '@/components/ui/progress';
@@ -21,7 +21,7 @@ import Image from 'next/image';
 import { generateUsername } from '@/ai/flows/generate-username-flow';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 import { useCollection } from '@/firebase';
-import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 
 const XP_PER_LEVEL = 1000; // 1000 XP to level up
 
@@ -97,8 +97,8 @@ export default function AccountPage() {
     const [gameLevels, setGameLevels] = useState<GameLevel[]>(defaultGameLevels);
     
     // Audio settings
-    const [isBgmMuted, setIsBgmMuted] = useState(false);
-    const [areSfxMuted, setAreSfxMuted] = useState(false);
+    const [bgmVolume, setBgmVolume] = useState(0.5);
+    const [sfxVolume, setSfxVolume] = useState(0.5);
     
     // Avatar state
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -135,20 +135,22 @@ export default function AccountPage() {
             setDifficulty(userProfile.difficulty || 'easy');
         }
         // Load audio settings from localStorage
-        const bgm = localStorage.getItem('bhagkp-bgm-muted') === 'true';
-        const sfx = localStorage.getItem('bhagkp-sfx-muted') === 'true';
-        setIsBgmMuted(bgm);
-        setAreSfxMuted(sfx);
+        const bgmVol = localStorage.getItem('bhagkp-bgm-volume');
+        const sfxVol = localStorage.getItem('bhagkp-sfx-volume');
+        setBgmVolume(bgmVol ? parseFloat(bgmVol) : 0.5);
+        setSfxVolume(sfxVol ? parseFloat(sfxVol) : 0.5);
     }, [userProfile]);
 
-    const handleBgmToggle = (checked: boolean) => {
-        setIsBgmMuted(checked);
-        localStorage.setItem('bhagkp-bgm-muted', String(checked));
+    const handleBgmVolumeChange = (value: number[]) => {
+        const newVolume = value[0];
+        setBgmVolume(newVolume);
+        localStorage.setItem('bhagkp-bgm-volume', String(newVolume));
     };
 
-    const handleSfxToggle = (checked: boolean) => {
-        setAreSfxMuted(checked);
-        localStorage.setItem('bhagkp-sfx-muted', String(checked));
+    const handleSfxVolumeChange = (value: number[]) => {
+        const newVolume = value[0];
+        setSfxVolume(newVolume);
+        localStorage.setItem('bhagkp-sfx-volume', String(newVolume));
     };
     
     const handleGenerateUsername = async () => {
@@ -399,14 +401,32 @@ export default function AccountPage() {
                                     </div>
                                 </div>
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                                    <div className="flex items-center space-x-2">
-                                        <Switch id="bgm-mute" checked={isBgmMuted} onCheckedChange={handleBgmToggle} />
-                                        <Label htmlFor="bgm-mute">Mute Background Music</Label>
+                                <div className="space-y-6 pt-4">
+                                    <div className="space-y-3">
+                                        <Label>Background Music Volume</Label>
+                                        <div className="flex items-center gap-2">
+                                            <VolumeX size={20} />
+                                            <Slider
+                                                value={[bgmVolume]}
+                                                onValueChange={handleBgmVolumeChange}
+                                                max={1}
+                                                step={0.01}
+                                            />
+                                            <Volume2 size={20} />
+                                        </div>
                                     </div>
-                                    <div className="flex items-center space-x-2">
-                                        <Switch id="sfx-mute" checked={areSfxMuted} onCheckedChange={handleSfxToggle} />
-                                        <Label htmlFor="sfx-mute">Mute Sound Effects</Label>
+                                    <div className="space-y-3">
+                                        <Label>Sound Effects Volume</Label>
+                                        <div className="flex items-center gap-2">
+                                            <VolumeX size={20} />
+                                            <Slider
+                                                value={[sfxVolume]}
+                                                onValueChange={handleSfxVolumeChange}
+                                                max={1}
+                                                step={0.01}
+                                            />
+                                            <Volume2 size={20} />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -427,5 +447,3 @@ export default function AccountPage() {
         </div>
     );
 }
-
-    
