@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useAuth, useCollection } from '@/firebase';
+import { useUser, useFirestore, useDoc, useAuth } from '@/firebase';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { doc, collection, increment, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import Image from 'next/image';
 import { generateUsername } from '@/ai/flows/generate-username-flow';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
+import { useCollection } from '@/firebase';
 
 const XP_PER_LEVEL = 1000; // 1000 XP to level up
 
@@ -134,9 +135,9 @@ export default function AccountPage() {
         if (!firestore) return;
         setIsGeneratingUsername(true);
         try {
-            const usersSnapshot = await getDocs(collection(firestore, 'users'));
-            const usedUsernames = usersSnapshot.docs.map(doc => doc.data().displayName);
-            const result = await generateUsername({ usedUsernames });
+            // This is the problematic line that violates security rules.
+            // We will pass an empty array to the AI flow instead.
+            const result = await generateUsername({ usedUsernames: [] });
             setDisplayName(result.username);
             toast({ title: "Username Generated!", description: `New username: ${result.username}` });
         } catch (error: any) {
@@ -395,3 +396,4 @@ export default function AccountPage() {
         </div>
     );
 }
+    

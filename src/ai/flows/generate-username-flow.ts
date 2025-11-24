@@ -13,7 +13,7 @@ import { z } from 'genkit';
 import { words as nepaliWords } from '@/lib/nepali-words.json';
 
 const GenerateUsernameInputSchema = z.object({
-  usedUsernames: z.array(z.string()).describe('A list of usernames that are already taken.'),
+  usedUsernames: z.array(z.string()).describe('A list of usernames that are already taken. This list may be empty.'),
 });
 export type GenerateUsernameInput = z.infer<typeof GenerateUsernameInputSchema>;
 
@@ -30,17 +30,12 @@ const prompt = ai.definePrompt({
   name: 'generateUsernamePrompt',
   input: { schema: GenerateUsernameInputSchema },
   output: { schema: GenerateUsernameOutputSchema },
-  prompt: `You are a username generator. Your task is to select a unique username from a predefined list of Nepali words.
+  prompt: `You are a username generator. Your task is to select one word from a predefined list of Nepali words.
 
 Here is the list of available words:
 ${nepaliWords.join(', ')}
 
-Here is the list of usernames that are already in use:
-{{#each usedUsernames}}
-- {{{this}}}
-{{/each}}
-
-Please select one word from the available list that is NOT in the used usernames list.
+Please select one word from the available list.
 Your response must only contain the selected username in the specified output format.`,
 });
 
@@ -51,14 +46,18 @@ const generateUsernameFlow = ai.defineFlow(
     outputSchema: GenerateUsernameOutputSchema,
   },
   async (input) => {
-    // For smaller lists, we can also do this in JS, but using AI is more fun.
-    if (input.usedUsernames.length >= nepaliWords.length) {
-      // Fallback if all words are used. Appends a random number.
-      const baseUsername = nepaliWords[Math.floor(Math.random() * nepaliWords.length)];
-      return { username: `${baseUsername}${Math.floor(Math.random() * 1000)}` };
+    // We can no longer reliably check for uniqueness here due to security rules.
+    // The AI will just pick a name. Collisions should be rare.
+    const { output } = await prompt(input);
+    
+    if (!output?.username || !nepaliWords.includes(output.username)) {
+      // Fallback in case the model returns something weird.
+      const fallbackUsername = nepaliWords[Math.floor(Math.random() * nepaliWords.length)];
+      return { username: fallbackUsername };
     }
 
-    const { output } = await prompt(input);
-    return output!;
+    return output;
   }
 );
+
+    
