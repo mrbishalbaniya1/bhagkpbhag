@@ -63,7 +63,7 @@ const generateCommentaryFlow = ai.defineFlow(
   async ({ phrase }) => {
     
     const { media } = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-preview-tts'),
+      model: googleAI.model('gemini-2.5-flash-preview'),
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: {
