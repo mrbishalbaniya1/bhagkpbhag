@@ -64,7 +64,7 @@ service cloud.firestore {
        * @deny A user cannot access another user's profile.
        */
       allow read, create: if isOwner(userId);
-      allow update: if isOwner(userId) && (!('highScore' in request.resource.data) || request.resource.data.highScore >= (resource.data.get('highScore', 0)));
+      allow update: if isOwner(userId) && request.resource.data.highScore >= (resource.data.get('highScore', 0));
       allow list, delete: if false;
 
       /**

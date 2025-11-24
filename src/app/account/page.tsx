@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useCollection, useAuth } from '@/firebase';
-import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { doc, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,55 +77,45 @@ export default function AccountPage() {
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!userProfileRef) return;
+        if (!userProfileRef || !userProfile) return;
 
         setIsUpdating(true);
-        try {
-            const updateData: Partial<UserProfile> = {};
-            let hasChanges = false;
-            
-            if (displayName.trim() && displayName.trim() !== userProfile?.displayName) {
-                updateData.displayName = displayName.trim();
-                hasChanges = true;
-            }
-            if (gameMode !== userProfile?.gameMode) {
-                updateData.gameMode = gameMode;
-                hasChanges = true;
-            }
-            if (difficulty !== userProfile?.difficulty) {
-                updateData.difficulty = difficulty;
-                 hasChanges = true;
-            }
 
-            if (!hasChanges) {
-                toast({
-                    title: 'No Changes',
-                    description: 'You haven\'t made any changes to save.',
-                });
-                setIsUpdating(false);
-                return;
-            }
-
-            // Always include the highScore to pass security rules if it's not being changed.
-            if (userProfile?.highScore !== undefined) {
-                 (updateData as any).highScore = userProfile.highScore;
-            }
-
-            updateDocumentNonBlocking(userProfileRef, updateData);
-            
-            toast({
-                title: 'Success!',
-                description: 'Your profile and settings have been updated.',
-            });
-        } catch (error: any) {
-            toast({
-                variant: 'destructive',
-                title: 'Update Failed',
-                description: error.message || 'Could not update your profile.',
-            });
-        } finally {
-            setIsUpdating(false);
+        const updateData: Partial<UserProfile> = {
+             highScore: userProfile.highScore || 0
+        };
+        let hasChanges = false;
+        
+        if (displayName.trim() && displayName.trim() !== userProfile?.displayName) {
+            updateData.displayName = displayName.trim();
+            hasChanges = true;
         }
+        if (gameMode !== userProfile?.gameMode) {
+            updateData.gameMode = gameMode;
+            hasChanges = true;
+        }
+        if (difficulty !== userProfile?.difficulty) {
+            updateData.difficulty = difficulty;
+             hasChanges = true;
+        }
+
+        if (!hasChanges) {
+            toast({
+                title: 'No Changes',
+                description: 'You haven\'t made any changes to save.',
+            });
+            setIsUpdating(false);
+            return;
+        }
+
+        updateDocumentNonBlocking(userProfileRef, updateData);
+        
+        toast({
+            title: 'Success!',
+            description: 'Your profile and settings have been updated.',
+        });
+        
+        setIsUpdating(false);
     };
     
     if (isUserLoading || isProfileLoading || !user || levelsLoading) {
