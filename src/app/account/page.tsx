@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -21,6 +22,11 @@ interface UserProfile {
     highScore: number;
     gameMode?: 'classic' | 'timeAttack' | 'zen' | 'insane';
     difficulty?: string;
+    lastGame?: {
+        score: number;
+        coins: number;
+        difficulty: string;
+    }
 }
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
@@ -82,7 +88,8 @@ export default function AccountPage() {
         setIsUpdating(true);
 
         const updateData: Partial<UserProfile> = {
-             highScore: userProfile.highScore || 0
+             highScore: userProfile.highScore || 0,
+             lastGame: userProfile.lastGame || null,
         };
         let hasChanges = false;
         
@@ -204,3 +211,5 @@ export default function AccountPage() {
         </div>
     );
 }
+
+    

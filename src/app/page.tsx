@@ -10,7 +10,7 @@ import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking, u
 import { collection, doc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Link from 'next/link';
 import { ShieldCheck } from 'lucide-react';
@@ -41,6 +41,11 @@ interface UserProfile {
     highScore?: number;
     gameMode?: GameMode;
     difficulty?: string;
+    lastGame?: {
+        score: number;
+        coins: number;
+        difficulty: string;
+    }
 }
 
 interface LeaderboardEntry {
@@ -440,6 +445,36 @@ export default function GamePage() {
         }
     }, [slowMo.active, doubleScore.active]);
 
+    const heroLoop = useCallback(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (!canvas || !ctx || !bgImgRef.current || !playerImgRef.current) {
+            gameLoopRef.current = requestAnimationFrame(heroLoop);
+            return;
+        }
+
+        const dpr = window.devicePixelRatio || 1;
+        const cw = canvas.width / dpr;
+        const ch = canvas.height / dpr;
+
+        ctx.clearRect(0, 0, cw, ch);
+
+        const scale = Math.max(cw / bgImgRef.current.width, ch / bgImgRef.current.height);
+        const sw = bgImgRef.current.width * scale;
+        const sh = bgImgRef.current.height * scale;
+        bgXRef.current -= 0.3;
+        if (bgXRef.current <= -sw) bgXRef.current = 0;
+        ctx.drawImage(bgImgRef.current, bgXRef.current, 0, sw, sh);
+        ctx.drawImage(bgImgRef.current, bgXRef.current + sw, 0, sw, sh);
+
+        // Make player float up and down
+        frameRef.current++;
+        playerRef.current.y = ch / 2.5 + Math.sin(frameRef.current / 40) * 15;
+        ctx.drawImage(playerImgRef.current, playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h);
+
+        gameLoopRef.current = requestAnimationFrame(heroLoop);
+    }, []);
+
     const gameLoop = useCallback(() => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
@@ -766,13 +801,20 @@ export default function GamePage() {
             const currentHighScore = highScoreRef.current;
 
             if (gameMode !== 'zen') {
+                const lastGameSummary = {
+                    score: finalScore,
+                    coins: finalCoins,
+                    difficulty: currentLevel.name,
+                };
                  if (finalScore > currentHighScore) {
                     setHighScore(finalScore);
                     if (user && !user.isAnonymous && firestore && userProfileRef) {
-                        updateDocumentNonBlocking(userProfileRef, { highScore: finalScore });
+                        updateDocumentNonBlocking(userProfileRef, { highScore: finalScore, lastGame: lastGameSummary });
                     } else if (typeof window !== 'undefined') {
                         localStorage.setItem("BhagKpBhag_high", finalScore.toString());
                     }
+                } else if (user && !user.isAnonymous && firestore && userProfileRef) {
+                    updateDocumentNonBlocking(userProfileRef, { lastGame: lastGameSummary });
                 }
                 saveScoreToLeaderboard(finalScore);
                 logGameEvent(finalScore);
@@ -793,6 +835,8 @@ export default function GamePage() {
     useEffect(() => {
         if (gameState === 'playing') {
             gameLoopRef.current = requestAnimationFrame(gameLoop);
+        } else if (gameState === 'ready') {
+            gameLoopRef.current = requestAnimationFrame(heroLoop);
         } else {
             if (gameLoopRef.current) {
                 cancelAnimationFrame(gameLoopRef.current);
@@ -806,7 +850,7 @@ export default function GamePage() {
                 clearInterval(timeAttackIntervalRef.current);
             }
         };
-    }, [gameState, gameLoop]);
+    }, [gameState, gameLoop, heroLoop]);
 
     useEffect(() => {
         const handleInput = (e: Event) => {
@@ -895,7 +939,7 @@ export default function GamePage() {
                 <audio ref={collisionAudioRef} src={gameAssets.collisionSound.url} playsInline />
             )}
             
-            {gameState !== 'loading' && (
+            {gameState !== 'loading' && gameState !== 'ready' && (
                 <>
                     <div className="absolute top-4 left-4 z-10 flex items-center gap-4 text-left text-foreground drop-shadow-lg">
                         <div>
@@ -920,9 +964,54 @@ export default function GamePage() {
             )}
             
             {gameState === 'ready' && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/50 text-foreground text-center p-4 animate-in fade-in duration-500">
-                    <h1 className="text-5xl font-bold font-headline drop-shadow-xl mb-4 text-primary">BhagKpBhag</h1>
-                    <p className="text-xl font-semibold animate-pulse">Tap or Press Space to Start</p>
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/30 text-foreground text-center p-4 animate-in fade-in duration-500">
+                    <h1 className="text-6xl font-bold font-headline drop-shadow-xl mb-4 text-primary">BhagKpBhag</h1>
+                     <p className="text-xl font-semibold animate-pulse mb-8">Tap or Press Space to Start</p>
+
+                     <Card className="max-w-md w-full bg-card/80 backdrop-blur-sm">
+                        <CardHeader>
+                            <CardTitle className="flex items-center justify-center gap-2">
+                                <Trophy className="text-yellow-500" />
+                                <span>Top Players</span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[50px]">Rank</TableHead>
+                                        <TableHead>Player</TableHead>
+                                        <TableHead className="text-right">Score</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {leaderboard && leaderboard.length > 0 ? (
+                                        leaderboard.slice(0, 3).map((entry, index) => (
+                                            <TableRow key={entry.id}>
+                                                <TableCell className="font-medium">{index + 1}</TableCell>
+                                                <TableCell>{entry.displayName}</TableCell>
+                                                <TableCell className="text-right">{entry.score}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={3} className="text-center">Be the first on the leaderboard!</TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                        {userProfile?.lastGame && (
+                            <CardFooter className="flex-col items-start text-sm">
+                                <h3 className="font-semibold mb-2 text-base">Your Last Game:</h3>
+                                <div className='flex justify-between w-full'>
+                                    <span>Score: <span className="font-bold">{userProfile.lastGame.score}</span></span>
+                                    <span>Coins: <span className="font-bold">{userProfile.lastGame.coins}</span></span>
+                                    <span className='capitalize'>Difficulty: <span className="font-bold">{userProfile.lastGame.difficulty}</span></span>
+                                </div>
+                            </CardFooter>
+                        )}
+                     </Card>
                 </div>
             )}
 
@@ -1026,5 +1115,7 @@ export default function GamePage() {
         </main>
     );
 }
+
+    
 
     
