@@ -5,7 +5,7 @@ import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore, useUser, useCollection, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, doc, getDoc, arrayUnion, arrayRemove, writeBatch, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, arrayUnion, arrayRemove, writeBatch, getDocs, updateDoc, deleteField } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -143,7 +143,6 @@ const AdminPageContent: React.FC = () => {
         if (!file || !firestore || !gameAssetsRef) return;
         
         const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-        const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
 
         if (!cloudName) {
             toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary cloud name is not configured.' });
@@ -156,11 +155,8 @@ const AdminPageContent: React.FC = () => {
         const cloudinaryFormData = new FormData();
         cloudinaryFormData.append('file', file);
         cloudinaryFormData.append('upload_preset', 'ml_default');
-        if (apiKey) {
-            cloudinaryFormData.append('api_key', apiKey);
-        }
         
-        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound'].includes(assetId) ? 'video' : 'image';
+        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound'].includes(assetId as string) ? 'video' : 'image';
 
         try {
             const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
@@ -209,6 +205,15 @@ const AdminPageContent: React.FC = () => {
         toast({ title: 'Success', description: `Pipe image '${pipeAsset.name}' deleted.` });
     };
 
+    const handleDeleteAsset = async (assetId: keyof GameAssets) => {
+        if (!firestore || !gameAssetsRef) return;
+        const assetName = (gameAssets?.[assetId] as GameAsset)?.name || assetId;
+        await updateDoc(gameAssetsRef, {
+            [assetId]: deleteField()
+        });
+        toast({ title: 'Success', description: `Asset '${assetName}' has been deleted.` });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!firestore) return;
@@ -250,9 +255,33 @@ const AdminPageContent: React.FC = () => {
     const AssetUploadCard: React.FC<{assetId: keyof GameAssets, label: string, isUploading: boolean}> = ({ assetId, label, isUploading }) => (
         <div className="space-y-2">
             <Label htmlFor={`${assetId}File`} className="capitalize text-lg">{label}</Label>
-            <div className='relative w-full h-40'>
+            <div className='relative w-full h-40 group'>
                 {gameAssets && gameAssets[assetId] && !Array.isArray(gameAssets[assetId]) ? (
-                    <Image src={(gameAssets[assetId] as GameAsset).url} alt={`Current ${label}`} fill className="rounded-md border object-cover" />
+                    <>
+                        <Image src={(gameAssets[assetId] as GameAsset).url} alt={`Current ${label}`} fill className="rounded-md border object-cover" />
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Trash2 size={14} />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will permanently delete the asset for '{label}'.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteAsset(assetId)}>Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </>
                 ) : <div className="w-full h-full flex items-center justify-center bg-muted rounded-md"><p className="text-sm text-muted-foreground">No custom image.</p></div>}
             </div>
             <Input id={`${assetId}File`} type="file" accept="image/*" onChange={handleFileChange(assetId)} disabled={isUploading}/>
@@ -263,12 +292,34 @@ const AdminPageContent: React.FC = () => {
     const AudioUploadCard: React.FC<{assetId: keyof GameAssets, label: string, isUploading: boolean}> = ({ assetId, label, isUploading }) => (
         <div className="space-y-2">
             <Label htmlFor={`${assetId}File`} className="text-lg">{label}</Label>
-            {gameAssets?.[assetId] && (
-                <div className="space-y-2">
+            {gameAssets?.[assetId] ? (
+                <div className="space-y-2 group relative">
                     <p className="text-sm text-muted-foreground truncate">Current: {(gameAssets[assetId] as GameAsset).name}</p>
                     <audio src={(gameAssets[assetId] as GameAsset).url} controls className="w-full" />
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-0 right-0 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Trash2 size={14} />
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete the audio for '{label}'.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteAsset(assetId)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
-            )}
+            ) : <p className="text-sm text-muted-foreground">No audio uploaded.</p>}
             <Input id={`${assetId}File`} type="file" accept="audio/*" onChange={handleFileChange(assetId)} disabled={isUploading}/>
             {isUploading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
         </div>
@@ -496,3 +547,5 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
+
+    
