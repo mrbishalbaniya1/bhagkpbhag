@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { getPlaceholderImages } from '@/lib/placeholder-images';
-import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText } from '@/lib/game-config';
+import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText, type RainDrop } from '@/lib/game-config';
 import { Loader2, Music, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking, updateDocumentNonBlocking, useAuth } from '@/firebase';
 import { collection, doc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
@@ -34,6 +34,7 @@ interface GameAssets {
 }
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
+type WeatherType = 'clear' | 'rain' | 'fog';
 
 interface UserProfile {
     displayName: string;
@@ -93,10 +94,14 @@ export default function GamePage() {
     const [doubleScore, setDoubleScore] = useState<{active: boolean, timer: number}>({ active: false, timer: 0 });
     const POWERUP_DURATION = 300; // a value in frames, e.g., 300 frames is ~5 seconds at 60fps
 
-    // Dynamic Obstacles State
+    // Dynamic Obstacles & Weather State
     const windRef = useRef({ direction: 1, strength: 0.1, timer: 0 });
     const particlesRef = useRef<Particle[]>([]);
     const floatingTextsRef = useRef<FloatingText[]>([]);
+    const [weather, setWeather] = useState<WeatherType>('clear');
+    const rainDropsRef = useRef<RainDrop[]>([]);
+    const lightningRef = useRef({ alpha: 0, timer: 0 });
+    const fogRef = useRef({ alpha: 0, targetAlpha: 0 });
 
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -155,8 +160,11 @@ export default function GamePage() {
         collectiblesRef.current = [];
         particlesRef.current = [];
         floatingTextsRef.current = [];
+        rainDropsRef.current = [];
         frameRef.current = 0;
         windRef.current = { direction: 1, strength: 0.1, timer: 0 };
+        setWeather('clear');
+        fogRef.current = { alpha: 0, targetAlpha: 0 };
         setScore(0);
         setCoins(0);
         setHasShield(false);
@@ -450,6 +458,41 @@ export default function GamePage() {
             if (insaneLevel) L = insaneLevel;
         }
 
+        // Weather logic
+        if (frameRef.current % 1200 === 0) { // Change weather every ~20 seconds
+            const weatherOptions: WeatherType[] = ['clear', 'rain', 'fog'];
+            const nextWeather = weatherOptions[Math.floor(Math.random() * weatherOptions.length)];
+            setWeather(nextWeather);
+        }
+
+        if (weather === 'fog') {
+            fogRef.current.targetAlpha = 0.6;
+        } else {
+            fogRef.current.targetAlpha = 0;
+        }
+
+        if (fogRef.current.alpha < fogRef.current.targetAlpha) {
+            fogRef.current.alpha += 0.005;
+        } else if (fogRef.current.alpha > fogRef.current.targetAlpha) {
+            fogRef.current.alpha -= 0.005;
+        }
+
+
+        if (weather === 'rain' && Math.random() < 0.3) {
+            for (let i = 0; i < 5; i++) {
+                rainDropsRef.current.push({
+                    x: Math.random() * cw,
+                    y: -20,
+                    length: Math.random() * 20 + 10,
+                    speed: Math.random() * 5 + 5,
+                });
+            }
+             if (Math.random() < 0.005) { // Chance of lightning
+                lightningRef.current = { alpha: 1, timer: 10 };
+            }
+        }
+
+
         if (slowMo.active) {
             L.speed *= 0.5;
             L.spawnRate *= 1.5;
@@ -619,6 +662,32 @@ export default function GamePage() {
         ctx.drawImage(bgImgRef.current, bgXRef.current, 0, sw, sh);
         ctx.drawImage(bgImgRef.current, bgXRef.current + sw, 0, sw, sh);
 
+        // Draw Weather Effects
+        if (lightningRef.current.alpha > 0) {
+            ctx.save();
+            ctx.globalAlpha = lightningRef.current.alpha;
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.restore();
+            lightningRef.current.alpha -= 0.1;
+        }
+
+        rainDropsRef.current.forEach((drop, index) => {
+            drop.y += drop.speed;
+            if (drop.y > ch) {
+                rainDropsRef.current.splice(index, 1);
+            }
+            ctx.save();
+            ctx.strokeStyle = 'rgba(174,194,224,0.7)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(drop.x, drop.y);
+            ctx.lineTo(drop.x, drop.y + drop.length);
+            ctx.stroke();
+            ctx.restore();
+        });
+
+
         pipesRef.current.forEach(p => {
             const yOffset = p.oscillate ? p.yOffset : 0;
             ctx.drawImage(p.img, p.x, 0 + yOffset, p.w, p.top);
@@ -650,6 +719,14 @@ export default function GamePage() {
             ctx.fillText(ft.text, ft.x, ft.y);
             ctx.restore();
         });
+
+        if (fogRef.current.alpha > 0) {
+            ctx.save();
+            ctx.globalAlpha = fogRef.current.alpha;
+            ctx.fillStyle = 'rgba(200, 200, 210, 0.7)';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.restore();
+        }
 
         ctx.save();
         ctx.translate(playerRef.current.x + playerRef.current.w / 2, playerRef.current.y + playerRef.current.h / 2);
@@ -711,7 +788,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather]);
 
     useEffect(() => {
         if (gameState === 'playing') {

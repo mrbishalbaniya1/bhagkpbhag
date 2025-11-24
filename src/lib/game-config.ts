@@ -59,6 +59,13 @@ export interface FloatingText {
     vy: number;
 }
 
+export interface RainDrop {
+    x: number;
+    y: number;
+    length: number;
+    speed: number;
+}
+
 
 // Default levels to use while Firestore is loading.
 export const defaultGameLevels: GameLevel[] = [
