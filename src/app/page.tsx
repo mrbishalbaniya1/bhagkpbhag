@@ -194,7 +194,7 @@ export default function GamePage() {
     useEffect(() => {
         if (user && !user.isAnonymous && userProfile) {
             setHighScore(userProfile.highScore || 0);
-            setGameMode(userProfile.gameMode || 'classic');
+            if (userProfile.gameMode) setGameMode(userProfile.gameMode);
             const userDifficulty = gameLevels.find(l => l.id === userProfile.difficulty) || gameLevels[0];
             setCurrentLevel(userDifficulty);
         } else if (typeof window !== 'undefined') {
@@ -309,13 +309,15 @@ export default function GamePage() {
             let newCurrentLevel = combinedLevels.find(l => l.id === currentLevel.id) || combinedLevels[0];
             if (gameMode === 'insane') {
                 newCurrentLevel = combinedLevels.find(l => l.id === 'insane') || newCurrentLevel;
+            } else if (userProfile?.difficulty) {
+                newCurrentLevel = combinedLevels.find(l => l.id === userProfile.difficulty) || newCurrentLevel;
             }
             setCurrentLevel(newCurrentLevel);
         } else if (!levelsLoading) {
             setGameLevels(defaultGameLevels);
             setCurrentLevel(defaultGameLevels[0]);
         }
-    }, [firebaseLevels, currentLevel.id, gameMode, levelsLoading]);
+    }, [firebaseLevels, currentLevel.id, gameMode, levelsLoading, userProfile?.difficulty]);
 
 
     useEffect(() => {
@@ -391,7 +393,6 @@ export default function GamePage() {
                 setTimeLeft(prev => {
                     if (prev <= 1) {
                         clearInterval(timeAttackIntervalRef.current!);
-                        setGameState('over'); // Let gameLoop handle the final actions
                         return 0;
                     }
                     return prev - 1;
@@ -682,15 +683,11 @@ export default function GamePage() {
             audioRef.current?.pause();
             if(shouldEndGame) collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
-            setLeaderboardPage(0);
 
             const finalScore = scoreRef.current;
             const finalCoins = coinsRef.current;
             const currentHighScore = highScoreRef.current;
 
-            setScore(finalScore);
-            setCoins(finalCoins);
-            
             if (gameMode !== 'zen') {
                  if (finalScore > currentHighScore) {
                     setHighScore(finalScore);
@@ -703,7 +700,13 @@ export default function GamePage() {
                 saveScoreToLeaderboard(finalScore);
                 logGameEvent(finalScore);
             }
+            
+            // This is the critical fix: update state BEFORE changing gameState
+            setScore(finalScore);
+            setCoins(finalCoins);
+            setLeaderboardPage(0);
             setGameState('over');
+
         } else {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
