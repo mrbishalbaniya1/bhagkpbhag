@@ -675,17 +675,21 @@ export default function GamePage() {
             ctx.restore();
         }
 
-        if (shouldEndGame) {
+        if (shouldEndGame || (gameMode === 'timeAttack' && timeLeft <= 0)) {
              if (gameLoopRef.current) {
                 cancelAnimationFrame(gameLoopRef.current);
             }
             audioRef.current?.pause();
-            collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+            if(shouldEndGame) collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
             setLeaderboardPage(0);
 
             const finalScore = scoreRef.current;
+            const finalCoins = coinsRef.current;
             const currentHighScore = highScoreRef.current;
+
+            setScore(finalScore);
+            setCoins(finalCoins);
             
             if (gameMode !== 'zen') {
                  if (finalScore > currentHighScore) {
@@ -704,7 +708,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, gameState]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft]);
 
     useEffect(() => {
         if (gameState === 'playing') {
