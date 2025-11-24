@@ -140,23 +140,6 @@ export default function GamePage() {
     const playerImgRef = useRef<HTMLImageElement>();
     const collectibleImgsRef = useRef<{[key: string]: HTMLImageElement}>({});
 
-    // Refs to hold latest state for use in gameLoop
-    const scoreRef = useRef(score);
-    const highScoreRef = useRef(highScore);
-    const coinsRef = useRef(coins);
-
-    useEffect(() => {
-      scoreRef.current = score;
-    }, [score]);
-
-    useEffect(() => {
-      highScoreRef.current = highScore;
-    }, [highScore]);
-    
-    useEffect(() => {
-      coinsRef.current = coins;
-    }, [coins]);
-
     // Load audio settings from local storage
     useEffect(() => {
         const bgm = localStorage.getItem('bhagkp-bgm-muted') === 'true';
@@ -376,10 +359,8 @@ export default function GamePage() {
         addDocumentNonBlocking(leaderboardCollection, scoreData);
     }, [firestore, user, userProfile, currentLevel.name, gameMode]);
 
-    const logGameEvent = useCallback(() => {
+    const logGameEvent = useCallback((finalScore: number) => {
         if (!firestore || !user || !currentLevel) return;
-        
-        const finalScore = scoreRef.current;
         
         const isMobile = window.innerWidth < 768;
         const newAchievements: AchievementId[] = [];
@@ -434,11 +415,11 @@ export default function GamePage() {
         }
     }, []);
 
-    const createFloatingText = useCallback((text: string) => {
+    const createFloatingText = useCallback((text: string, x: number, y: number) => {
         floatingTextsRef.current.push({
             text,
-            x: playerRef.current.x + playerRef.current.w / 2,
-            y: playerRef.current.y,
+            x: x,
+            y: y,
             alpha: 1,
             vy: -2,
         });
@@ -665,7 +646,7 @@ export default function GamePage() {
                     p.passed = true;
                     const points = doubleScore.active ? 2 : 1;
                     setScore(s => s + points);
-                    createFloatingText(`+${points}`);
+                    createFloatingText(`+${points}`, playerRef.current.x + playerRef.current.w / 2, playerRef.current.y);
                 }
             });
         } else {
@@ -873,15 +854,14 @@ export default function GamePage() {
             }
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
 
-            const finalScore = scoreRef.current;
-            const finalCoins = coinsRef.current;
-            const currentHighScore = highScoreRef.current;
-            
-            setScore(finalScore);
-            setCoins(finalCoins);
-            
+            // Get final values from state setters to avoid race conditions
+            let finalScore = 0;
+            let finalCoins = 0;
+            setScore(s => { finalScore = s; return s; });
+            setCoins(c => { finalCoins = c; return c; });
+
             if (gameMode !== 'zen') {
-                const isNewHighScore = finalScore > currentHighScore;
+                const isNewHighScore = finalScore > highScore;
                 const lastGameSummary = {
                     score: finalScore,
                     coins: finalCoins,
@@ -898,7 +878,7 @@ export default function GamePage() {
                     updateDocumentNonBlocking(userProfileRef, { lastGame: lastGameSummary });
                 }
                 saveScoreToLeaderboard(finalScore);
-                logGameEvent();
+                logGameEvent(finalScore);
             }
             
             setLeaderboardPage(0);
@@ -908,7 +888,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, areSfxMuted]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, areSfxMuted, highScore]);
 
     useEffect(() => {
         if (gameState === 'playing') {
