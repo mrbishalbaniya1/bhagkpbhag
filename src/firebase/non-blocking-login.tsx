@@ -131,7 +131,6 @@ export async function initiateGoogleSignIn(
     toast({ title: 'Success!', description: 'You are now signed in with Google.' });
     router.push('/');
   } catch (error: any) {
-    console.error("Google sign-in error:", error);
     if (error.code === 'auth/popup-closed-by-user') {
       toast({
         variant: 'default',
@@ -139,6 +138,7 @@ export async function initiateGoogleSignIn(
         description: 'You closed the Google Sign-In window.',
       });
     } else {
+      console.error("Google sign-in error:", error);
       toast({
         variant: 'destructive',
         title: 'Google Sign-In Failed',
