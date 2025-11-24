@@ -250,6 +250,34 @@
               "format": "uri"
             }
           }
+        },
+        "coinSound": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string", "format": "uri" }
+          }
+        },
+        "shieldSound": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string", "format": "uri" }
+          }
+        },
+        "slowMoSound": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string", "format": "uri" }
+          }
+        },
+        "doubleScoreSound": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string", "format": "uri" }
+          }
         }
       }
     },

@@ -38,6 +38,10 @@ interface GameAssets {
     doubleScore?: GameAsset;
     jumpSound?: GameAsset;
     collisionSound?: GameAsset;
+    coinSound?: GameAsset;
+    shieldSound?: GameAsset;
+    slowMoSound?: GameAsset;
+    doubleScoreSound?: GameAsset;
 }
 
 const AdminPageContent: React.FC = () => {
@@ -156,7 +160,7 @@ const AdminPageContent: React.FC = () => {
         cloudinaryFormData.append('file', file);
         cloudinaryFormData.append('upload_preset', 'ml_default');
         
-        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound'].includes(assetId as string) ? 'video' : 'image';
+        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound', 'coinSound', 'shieldSound', 'slowMoSound', 'doubleScoreSound'].includes(assetId as string) ? 'video' : 'image';
 
         try {
             const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
@@ -436,7 +440,7 @@ const AdminPageContent: React.FC = () => {
                     <CardDescription>Manage the background music and sound effects for game events like jumping and collisions.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="grid md:grid-cols-3 gap-8">
+                     <div className="grid md:grid-cols-3 gap-8">
                        <AudioUploadCard assetId="bgMusic" label="Background Music" isUploading={!!uploadingStates['bgMusic']} />
                        <AudioUploadCard assetId="jumpSound" label="Jump Sound" isUploading={!!uploadingStates['jumpSound']} />
                        <AudioUploadCard assetId="collisionSound" label="Collision Sound" isUploading={!!uploadingStates['collisionSound']} />
@@ -444,6 +448,21 @@ const AdminPageContent: React.FC = () => {
                 </CardContent>
             </Card>
             
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>Collectible Audio Assets</CardTitle>
+                    <CardDescription>Manage sound effects for collecting items.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="grid md:grid-cols-4 gap-8">
+                       <AudioUploadCard assetId="coinSound" label="Coin Sound" isUploading={!!uploadingStates['coinSound']} />
+                       <AudioUploadCard assetId="shieldSound" label="Shield Sound" isUploading={!!uploadingStates['shieldSound']} />
+                       <AudioUploadCard assetId="slowMoSound" label="Slow-Mo Sound" isUploading={!!uploadingStates['slowMoSound']} />
+                       <AudioUploadCard assetId="doubleScoreSound" label="Double Score Sound" isUploading={!!uploadingStates['doubleScoreSound']} />
+                    </div>
+                </CardContent>
+            </Card>
+
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                     <Button onClick={() => { setEditingLevel(null); }}>Add New Level Draft</Button>

@@ -31,6 +31,10 @@ interface GameAssets {
     doubleScore?: GameAsset;
     jumpSound?: GameAsset;
     collisionSound?: GameAsset;
+    coinSound?: GameAsset;
+    shieldSound?: GameAsset;
+    slowMoSound?: GameAsset;
+    doubleScoreSound?: GameAsset;
 }
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
@@ -126,6 +130,10 @@ export default function GamePage() {
     const audioRef = useRef<HTMLAudioElement>(null);
     const jumpAudioRef = useRef<HTMLAudioElement>(null);
     const collisionAudioRef = useRef<HTMLAudioElement>(null);
+    const coinAudioRef = useRef<HTMLAudioElement>(null);
+    const shieldAudioRef = useRef<HTMLAudioElement>(null);
+    const slowMoAudioRef = useRef<HTMLAudioElement>(null);
+    const doubleScoreAudioRef = useRef<HTMLAudioElement>(null);
 
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
@@ -657,6 +665,14 @@ export default function GamePage() {
             if (shouldEndGame) return;
             c.x -= L.speed;
             if (rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, c.x, c.y, c.w, c.h)) {
+                if (!areSfxMuted) {
+                    switch(c.type) {
+                        case 'coin': coinAudioRef.current?.play().catch(e => console.error("Audio play failed:", e)); break;
+                        case 'shield': shieldAudioRef.current?.play().catch(e => console.error("Audio play failed:", e)); break;
+                        case 'slowMo': slowMoAudioRef.current?.play().catch(e => console.error("Audio play failed:", e)); break;
+                        case 'doubleScore': doubleScoreAudioRef.current?.play().catch(e => console.error("Audio play failed:", e)); break;
+                    }
+                }
                 switch(c.type) {
                     case 'coin': setCoins(cs => cs + 1); break;
                     case 'shield': setHasShield(true); break;
@@ -859,7 +875,8 @@ export default function GamePage() {
             let finalCoins = 0;
             setScore(s => { finalScore = s; return s; });
             setCoins(c => { finalCoins = c; return c; });
-
+            
+            // This is the CRITICAL part. Update the state THEN set game to over.
             if (gameMode !== 'zen') {
                 const isNewHighScore = finalScore > highScore;
                 const lastGameSummary = {
@@ -888,7 +905,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, areSfxMuted, highScore]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, areSfxMuted, highScore, coins]);
 
     useEffect(() => {
         if (gameState === 'playing') {
@@ -943,15 +960,13 @@ export default function GamePage() {
     }, [jump, gameState]);
 
     useEffect(() => {
-        if(audioRef.current){
-            audioRef.current.muted = isBgmMuted;
-        }
-        if(jumpAudioRef.current){
-            jumpAudioRef.current.muted = areSfxMuted;
-        }
-        if(collisionAudioRef.current){
-            collisionAudioRef.current.muted = areSfxMuted;
-        }
+        if(audioRef.current){ audioRef.current.muted = isBgmMuted; }
+        if(jumpAudioRef.current){ jumpAudioRef.current.muted = areSfxMuted; }
+        if(collisionAudioRef.current){ collisionAudioRef.current.muted = areSfxMuted; }
+        if(coinAudioRef.current){ coinAudioRef.current.muted = areSfxMuted; }
+        if(shieldAudioRef.current){ shieldAudioRef.current.muted = areSfxMuted; }
+        if(slowMoAudioRef.current){ slowMoAudioRef.current.muted = areSfxMuted; }
+        if(doubleScoreAudioRef.current){ doubleScoreAudioRef.current.muted = areSfxMuted; }
     }, [isBgmMuted, areSfxMuted]);
 
     const handleRestart = () => {
@@ -986,15 +1001,13 @@ export default function GamePage() {
         <main className="relative w-screen h-screen overflow-hidden bg-background font-body select-none">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
             
-            {gameAssets?.bgMusic?.url && (
-                <audio ref={audioRef} src={gameAssets.bgMusic.url} loop playsInline />
-            )}
-             {gameAssets?.jumpSound?.url && (
-                <audio ref={jumpAudioRef} src={gameAssets.jumpSound.url} playsInline />
-            )}
-            {gameAssets?.collisionSound?.url && (
-                <audio ref={collisionAudioRef} src={gameAssets.collisionSound.url} playsInline />
-            )}
+            {gameAssets?.bgMusic?.url && ( <audio ref={audioRef} src={gameAssets.bgMusic.url} loop playsInline /> )}
+            {gameAssets?.jumpSound?.url && ( <audio ref={jumpAudioRef} src={gameAssets.jumpSound.url} playsInline /> )}
+            {gameAssets?.collisionSound?.url && ( <audio ref={collisionAudioRef} src={gameAssets.collisionSound.url} playsInline /> )}
+            {gameAssets?.coinSound?.url && ( <audio ref={coinAudioRef} src={gameAssets.coinSound.url} playsInline /> )}
+            {gameAssets?.shieldSound?.url && ( <audio ref={shieldAudioRef} src={gameAssets.shieldSound.url} playsInline /> )}
+            {gameAssets?.slowMoSound?.url && ( <audio ref={slowMoAudioRef} src={gameAssets.slowMoSound.url} playsInline /> )}
+            {gameAssets?.doubleScoreSound?.url && ( <audio ref={doubleScoreAudioRef} src={gameAssets.doubleScoreSound.url} playsInline /> )}
             
             {gameState !== 'loading' && gameState !== 'ready' && (
                 <>
@@ -1171,3 +1184,5 @@ export default function GamePage() {
         </main>
     );
 }
+
+    
