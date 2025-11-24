@@ -117,6 +117,24 @@ export default function GamePage() {
     const playerImgRef = useRef<HTMLImageElement>();
     const collectibleImgsRef = useRef<{[key: string]: HTMLImageElement}>({});
 
+    // Refs to hold latest state for use in gameLoop
+    const scoreRef = useRef(score);
+    const highScoreRef = useRef(highScore);
+    const coinsRef = useRef(coins);
+
+    useEffect(() => {
+      scoreRef.current = score;
+    }, [score]);
+
+    useEffect(() => {
+      highScoreRef.current = highScore;
+    }, [highScore]);
+    
+    useEffect(() => {
+      coinsRef.current = coins;
+    }, [coins]);
+
+
     const resetGame = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -416,9 +434,10 @@ export default function GamePage() {
     const gameLoop = useCallback(() => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx || !bgImgRef.current || !playerImgRef.current || pipeImgsRef.current.length === 0 || !currentLevel) return;
-        
-        let shouldEndGame = false;
+        if (!canvas || !ctx || !bgImgRef.current || !playerImgRef.current || pipeImgsRef.current.length === 0 || !currentLevel) {
+            gameLoopRef.current = requestAnimationFrame(gameLoop);
+            return;
+        };
 
         const dpr = window.devicePixelRatio || 1;
         const cw = canvas.width / dpr;
@@ -448,6 +467,7 @@ export default function GamePage() {
         playerRef.current.vel += L.gravity;
         playerRef.current.y += playerRef.current.vel;
         
+        let shouldEndGame = false;
         if ((playerRef.current.y < 0 || playerRef.current.y + playerRef.current.h > ch) && gameMode !== 'zen') {
             if (hasShield) {
                 setHasShield(false);
@@ -464,6 +484,7 @@ export default function GamePage() {
 
         if (gameMode !== 'zen') {
             pipesRef.current.forEach(p => {
+                if (shouldEndGame) return;
                 p.x -= p.speed;
 
                 if (p.oscillate) {
@@ -498,6 +519,7 @@ export default function GamePage() {
         }
         
         collectiblesRef.current.forEach((c, i) => {
+            if (shouldEndGame) return;
             c.x -= L.speed;
             if (rectCol(playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h, c.x, c.y, c.w, c.h)) {
                 switch(c.type) {
@@ -654,17 +676,6 @@ export default function GamePage() {
         }
 
         if (shouldEndGame) {
-             setGameState('over');
-        } else {
-             gameLoopRef.current = requestAnimationFrame(gameLoop);
-        }
-
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, score, highScore, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, gameState]);
-
-    useEffect(() => {
-        if (gameState === 'playing') {
-            gameLoopRef.current = requestAnimationFrame(gameLoop);
-        } else if (gameState === 'over') {
              if (gameLoopRef.current) {
                 cancelAnimationFrame(gameLoopRef.current);
             }
@@ -673,17 +684,34 @@ export default function GamePage() {
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
             setLeaderboardPage(0);
 
+            const finalScore = scoreRef.current;
+            const currentHighScore = highScoreRef.current;
+            
             if (gameMode !== 'zen') {
-                 if (score > highScore) {
-                    setHighScore(score);
+                 if (finalScore > currentHighScore) {
+                    setHighScore(finalScore);
                     if (user && !user.isAnonymous && firestore && userProfileRef) {
-                        updateDocumentNonBlocking(userProfileRef, { highScore: score });
+                        updateDocumentNonBlocking(userProfileRef, { highScore: finalScore });
                     } else if (typeof window !== 'undefined') {
-                        localStorage.setItem("BhagKpBhag_high", score.toString());
+                        localStorage.setItem("BhagKpBhag_high", finalScore.toString());
                     }
                 }
-                saveScoreToLeaderboard(score);
-                logGameEvent(score);
+                saveScoreToLeaderboard(finalScore);
+                logGameEvent(finalScore);
+            }
+            setGameState('over');
+        } else {
+             gameLoopRef.current = requestAnimationFrame(gameLoop);
+        }
+
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, gameState]);
+
+    useEffect(() => {
+        if (gameState === 'playing') {
+            gameLoopRef.current = requestAnimationFrame(gameLoop);
+        } else {
+            if (gameLoopRef.current) {
+                cancelAnimationFrame(gameLoopRef.current);
             }
         }
         return () => {
@@ -694,7 +722,7 @@ export default function GamePage() {
                 clearInterval(timeAttackIntervalRef.current);
             }
         };
-    }, [gameState, gameLoop, score, highScore, gameMode, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef]);
+    }, [gameState, gameLoop]);
 
     useEffect(() => {
         const handleInput = (e: Event) => {
@@ -914,3 +942,5 @@ export default function GamePage() {
         </main>
     );
 }
+
+    
