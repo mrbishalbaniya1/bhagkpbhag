@@ -887,7 +887,6 @@ export default function GamePage() {
             const finalCoins = coinsRef.current;
             const currentHighScore = highScoreRef.current;
             
-            // This is the critical change: update state BEFORE setting game state to 'over'
             setScore(finalScore);
             setCoins(finalCoins);
             
