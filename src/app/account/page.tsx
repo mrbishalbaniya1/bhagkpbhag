@@ -1,11 +1,11 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useCollection, useAuth } from '@/firebase';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { doc, collection } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useAuth } from '@/firebase';
+import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { doc, collection, increment } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,22 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/provider';
 import { GameLevel, defaultGameLevels } from '@/lib/game-config';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import Image from 'next/image';
+import { generateUsername } from '@/ai/flows/generate-username-flow';
+import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
+
+const XP_PER_LEVEL = 1000; // 1000 XP to level up
+
+const achievementsConfig = {
+    'first-50': 'First 50 Points',
+    'flawless-run': 'Flawless Run (no collisions)',
+    'slow-mo-master': 'Slow-Mo Master',
+    'veteran-player': 'Veteran Player (100 games played)',
+};
+type AchievementId = keyof typeof achievementsConfig;
 
 interface UserProfile {
     displayName: string;
@@ -26,10 +42,38 @@ interface UserProfile {
         score: number;
         coins: number;
         difficulty: string;
-    }
+    };
+    xp?: number;
+    level?: number;
+    avatarUrl?: string;
+    achievements?: AchievementId[];
+    gamesPlayed?: number;
 }
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
+
+const Achievements = ({ achievementIds }: { achievementIds?: AchievementId[] }) => {
+    if (!achievementIds || achievementIds.length === 0) {
+        return <p className="text-sm text-muted-foreground">No achievements yet. Keep playing!</p>;
+    }
+
+    return (
+        <TooltipProvider>
+            <div className="flex flex-wrap gap-2">
+                {achievementIds.map(id => (
+                    <Tooltip key={id}>
+                        <TooltipTrigger asChild>
+                            <Badge variant="secondary">{achievementsConfig[id]}</Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>{achievementsConfig[id]}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                ))}
+            </div>
+        </TooltipProvider>
+    );
+};
 
 export default function AccountPage() {
     const { user, isUserLoading } = useUser();
@@ -46,9 +90,15 @@ export default function AccountPage() {
 
     const [displayName, setDisplayName] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isGeneratingUsername, setIsGeneratingUsername] = useState(false);
     const [gameMode, setGameMode] = useState<GameMode>('classic');
     const [difficulty, setDifficulty] = useState('easy');
     const [gameLevels, setGameLevels] = useState<GameLevel[]>(defaultGameLevels);
+    
+    // Avatar state
+    const [avatarFile, setAvatarFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
 
     useEffect(() => {
         if (!isUserLoading && (!user || user.isAnonymous)) {
@@ -80,6 +130,86 @@ export default function AccountPage() {
             setDifficulty(userProfile.difficulty || 'easy');
         }
     }, [userProfile]);
+    
+    const handleGenerateUsername = async () => {
+        if (!firestore) return;
+        setIsGeneratingUsername(true);
+        try {
+            const usersSnapshot = await getDocs(collection(firestore, 'users'));
+            const usedUsernames = usersSnapshot.docs.map(doc => doc.data().displayName);
+            const result = await generateUsername({ usedUsernames });
+            setDisplayName(result.username);
+            toast({ title: "Username Generated!", description: `New username: ${result.username}` });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not generate a new username.' });
+        } finally {
+            setIsGeneratingUsername(false);
+        }
+    };
+    
+    const handleAvatarUpload = async () => {
+        if (!avatarFile || !userProfileRef) return;
+        
+        setIsUploading(true);
+        toast({ title: 'Uploading Avatar...' });
+        
+        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+        if (!cloudName) {
+            toast({ variant: 'destructive', title: 'Upload Error', description: 'Cloudinary cloud name is not configured.' });
+            setIsUploading(false);
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', avatarFile);
+        formData.append('upload_preset', 'ml_default');
+        
+        try {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await response.json();
+            if (response.ok) {
+                updateDocumentNonBlocking(userProfileRef, { avatarUrl: data.secure_url });
+                toast({ title: 'Success!', description: 'Your avatar has been updated.' });
+            } else {
+                throw new Error(data.error?.message || 'Failed to upload image.');
+            }
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Upload Failed', description: error.message });
+        } finally {
+            setIsUploading(false);
+            setAvatarFile(null);
+        }
+    };
+    
+    const handleGenerateAvatar = async (style: 'Pixel' | 'Anime' | 'Cartoon') => {
+        if (!userProfile?.avatarUrl || !userProfileRef) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please upload a base image first.' });
+            return;
+        }
+        setIsGeneratingAvatar(true);
+        toast({ title: `Generating ${style} Avatar...`, description: 'This may take a moment.' });
+        
+        try {
+            // Need to fetch the image and convert to data URI for the AI model
+            const response = await fetch(userProfile.avatarUrl);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string;
+                const result = await generateAvatar({ imageDataUri: base64data, style });
+                updateDocumentNonBlocking(userProfileRef, { avatarUrl: result.imageUrl });
+                toast({ title: 'Success!', description: `Your new ${style} avatar is ready.` });
+                setIsGeneratingAvatar(false);
+            };
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Generation Failed', description: error.message });
+            setIsGeneratingAvatar(false);
+        }
+    };
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -87,10 +217,7 @@ export default function AccountPage() {
 
         setIsUpdating(true);
 
-        const updateData: Partial<UserProfile> = {
-             highScore: userProfile.highScore || 0,
-             lastGame: userProfile.lastGame || null,
-        };
+        const updateData: Partial<UserProfile> = {};
         let hasChanges = false;
         
         if (displayName.trim() && displayName.trim() !== userProfile?.displayName) {
@@ -136,78 +263,136 @@ export default function AccountPage() {
     if (!user || user.isAnonymous) {
         return null;
     }
+    
+    const currentXP = userProfile?.xp || 0;
+    const currentLevel = userProfile?.level || 1;
+    const progress = (currentXP / (XP_PER_LEVEL * currentLevel)) * 100;
 
     return (
-        <div className="container mx-auto max-w-2xl p-4 md:p-8">
+        <div className="container mx-auto max-w-4xl p-4 md:p-8">
             <Button variant="outline" onClick={() => router.push('/')} className="mb-8">
                 &larr; Back to Game
             </Button>
-            <Card>
-                <CardHeader>
-                    <CardTitle>My Account</CardTitle>
-                    <CardDescription>Manage your profile details and game settings.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleUpdateProfile} className="space-y-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" value={userProfile?.email || ''} disabled />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="displayName">Username</Label>
-                            <Input
-                                id="displayName"
-                                type="text"
-                                value={displayName}
-                                onChange={(e) => setDisplayName(e.target.value)}
-                                placeholder="Enter your new username"
+            <div className="grid md:grid-cols-3 gap-8">
+                <div className="md:col-span-1 space-y-8">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>My Avatar</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="relative w-40 h-40 mx-auto rounded-full overflow-hidden border-2 border-primary">
+                                <Image 
+                                    src={userProfile?.avatarUrl || `https://api.dicebear.com/8.x/bottts/svg?seed=${user.uid}`}
+                                    alt="User Avatar"
+                                    fill
+                                    className="object-cover"
+                                />
+                            </div>
+                            <Input 
+                                id="avatarFile"
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
+                                disabled={isUploading || isGeneratingAvatar}
                             />
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                            <div className="space-y-2">
-                                <Label>Game Mode</Label>
-                                <Select onValueChange={(value: GameMode) => setGameMode(value)} value={gameMode}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select mode" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="classic"><span className="capitalize">Classic</span></SelectItem>
-                                        <SelectItem value="timeAttack"><span className="capitalize">Time Attack</span></SelectItem>
-                                        <SelectItem value="zen"><span className="capitalize">Zen Mode</span></SelectItem>
-                                        <SelectItem value="insane"><span className="capitalize">Insane</span></SelectItem>
-                                    </SelectContent>
-                                </Select>
+                            <Button onClick={handleAvatarUpload} disabled={!avatarFile || isUploading || isGeneratingAvatar} className="w-full">
+                                {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Upload Picture
+                            </Button>
+                             <div className="flex gap-2 justify-center">
+                                <Button size="sm" variant="secondary" onClick={() => handleGenerateAvatar('Pixel')} disabled={!userProfile?.avatarUrl || isGeneratingAvatar || isUploading}>Pixel</Button>
+                                <Button size="sm" variant="secondary" onClick={() => handleGenerateAvatar('Anime')} disabled={!userProfile?.avatarUrl || isGeneratingAvatar || isUploading}>Anime</Button>
+                                <Button size="sm" variant="secondary" onClick={() => handleGenerateAvatar('Cartoon')} disabled={!userProfile?.avatarUrl || isGeneratingAvatar || isUploading}>Cartoon</Button>
                             </div>
+                            {isGeneratingAvatar && <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Generating...</div>}
+                        </CardContent>
+                    </Card>
+                </div>
+                <div className="md:col-span-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>My Account</CardTitle>
+                            <CardDescription>Manage your profile details and game settings.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
                             <div className="space-y-2">
-                                <Label>Difficulty</Label>
-                                <Select onValueChange={setDifficulty} value={difficulty} disabled={gameMode === 'insane'}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select level" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {gameLevels?.filter(l => l.id !== 'insane').map(l => (
-                                            <SelectItem key={l.id} value={l.id}>
-                                                <span className="capitalize">{l.name}</span>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label>Level {currentLevel}</Label>
+                                <Progress value={progress} />
+                                <p className="text-sm text-muted-foreground text-center">{currentXP} / {XP_PER_LEVEL * currentLevel} XP</p>
                             </div>
-                        </div>
+                            
+                             <div className="space-y-2">
+                                <Label>Achievements</Label>
+                                <Achievements achievementIds={userProfile?.achievements} />
+                            </div>
 
-                        <Button type="submit" disabled={isUpdating} className="w-full">
-                            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save Changes
-                        </Button>
-                    </form>
-                </CardContent>
-                <CardFooter>
-                    <Button variant="ghost" size="lg" onClick={() => auth?.signOut()} className="w-full">
-                        Sign Out
-                    </Button>
-                </CardFooter>
-            </Card>
+                            <form onSubmit={handleUpdateProfile} className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">Email</Label>
+                                    <Input id="email" type="email" value={userProfile?.email || ''} disabled />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="displayName">Username</Label>
+                                    <div className="flex gap-2">
+                                    <Input
+                                        id="displayName"
+                                        type="text"
+                                        value={displayName}
+                                        onChange={(e) => setDisplayName(e.target.value)}
+                                        placeholder="Enter your new username"
+                                    />
+                                     <Button type="button" variant="outline" onClick={handleGenerateUsername} disabled={isGeneratingUsername}>
+                                        {isGeneratingUsername ? <Loader2 className="h-4 w-4 animate-spin" /> : 'AI'}
+                                    </Button>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                                    <div className="space-y-2">
+                                        <Label>Game Mode</Label>
+                                        <Select onValueChange={(value: GameMode) => setGameMode(value)} value={gameMode}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select mode" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="classic"><span className="capitalize">Classic</span></SelectItem>
+                                                <SelectItem value="timeAttack"><span className="capitalize">Time Attack</span></SelectItem>
+                                                <SelectItem value="zen"><span className="capitalize">Zen Mode</span></SelectItem>
+                                                <SelectItem value="insane"><span className="capitalize">Insane</span></SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Difficulty</Label>
+                                        <Select onValueChange={setDifficulty} value={difficulty} disabled={gameMode === 'insane'}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select level" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {gameLevels?.filter(l => l.id !== 'insane').map(l => (
+                                                    <SelectItem key={l.id} value={l.id}>
+                                                        <span className="capitalize">{l.name}</span>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <Button type="submit" disabled={isUpdating} className="w-full">
+                                    {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Save Changes
+                                </Button>
+                            </form>
+                        </CardContent>
+                        <CardFooter>
+                            <Button variant="ghost" size="lg" onClick={() => auth?.signOut()} className="w-full">
+                                Sign Out
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+            </div>
         </div>
     );
 }

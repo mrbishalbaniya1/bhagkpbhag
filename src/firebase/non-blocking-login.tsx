@@ -12,7 +12,6 @@ import {
 import { Firestore, doc, setDoc, serverTimestamp, getDoc, collection, getDocs } from 'firebase/firestore';
 import type { useToast } from '@/hooks/use-toast';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
-import { generateUsername } from '@/ai/flows/generate-username-flow';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -24,16 +23,6 @@ interface SignUpOptions {
 export function initiateAnonymousSignIn(authInstance: Auth): void {
   signInAnonymously(authInstance);
 }
-
-/** Fetches existing usernames and generates a new unique one. */
-async function getUniqueUsername(firestore: Firestore): Promise<string> {
-    const usersCollection = collection(firestore, 'users');
-    const usersSnapshot = await getDocs(usersCollection);
-    const existingUsernames = usersSnapshot.docs.map(doc => doc.data().displayName);
-    const newUsername = await generateUsername({ usedUsernames: existingUsernames });
-    return newUsername.username;
-}
-
 
 /** Initiate email/password sign-up and create user profile (non-blocking). */
 export async function initiateEmailSignUp(authInstance: Auth, email: string, password: string, options: SignUpOptions): Promise<UserCredential> {
@@ -47,6 +36,10 @@ export async function initiateEmailSignUp(authInstance: Auth, email: string, pas
       email: user.email,
       createdAt: serverTimestamp(),
       highScore: 0,
+      xp: 0,
+      level: 1,
+      achievements: [],
+      gamesPlayed: 0,
   };
   
   setDoc(userProfileRef, userProfileData).catch(error => {
@@ -119,6 +112,10 @@ export async function initiateGoogleSignIn(
         email: user.email,
         createdAt: serverTimestamp(),
         highScore: 0,
+        xp: 0,
+        level: 1,
+        achievements: [],
+        gamesPlayed: 0,
       };
       setDoc(userProfileRef, userProfileData).catch(error => {
         const permissionError = new FirestorePermissionError({
@@ -153,3 +150,5 @@ export async function initiateGoogleSignIn(
     }
   }
 }
+
+    

@@ -7,7 +7,7 @@ import { getPlaceholderImages } from '@/lib/placeholder-images';
 import { type GameLevel, type Player, type Pipe, defaultGameLevels, type Collectible, type Particle, type FloatingText, type RainDrop } from '@/lib/game-config';
 import { Loader2, Music, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useDoc, addDocumentNonBlocking, updateDocumentNonBlocking, useAuth } from '@/firebase';
-import { collection, doc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, query, orderBy, limit, increment, arrayUnion } from 'firebase/firestore';
 import { useMemoFirebase } from '@/firebase/provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +35,8 @@ interface GameAssets {
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
 type WeatherType = 'clear' | 'rain' | 'fog';
+type AchievementId = 'first-50' | 'flawless-run' | 'slow-mo-master' | 'veteran-player';
+
 
 interface UserProfile {
     displayName: string;
@@ -45,7 +47,11 @@ interface UserProfile {
         score: number;
         coins: number;
         difficulty: string;
-    }
+    };
+    xp?: number;
+    level?: number;
+    achievements?: AchievementId[];
+    gamesPlayed?: number;
 }
 
 interface LeaderboardEntry {
@@ -57,6 +63,8 @@ interface LeaderboardEntry {
         nanoseconds: number;
     };
 }
+
+const XP_PER_LEVEL = 1000;
 
 export default function GamePage() {
     const { user } = useUser();
@@ -121,6 +129,7 @@ export default function GamePage() {
     const collectiblesRef = useRef<(Collectible & { img: HTMLImageElement })[]>([]);
     const frameRef = useRef(0);
     const bgXRef = useRef(0);
+    const collisionOccurredRef = useRef(false);
 
     const bgImgRef = useRef<HTMLImageElement>();
     const pipeImgsRef = useRef<HTMLImageElement[]>([]);
@@ -170,6 +179,7 @@ export default function GamePage() {
         windRef.current = { direction: 1, strength: 0.1, timer: 0 };
         setWeather('clear');
         fogRef.current = { alpha: 0, targetAlpha: 0 };
+        collisionOccurredRef.current = false;
         setScore(0);
         setCoins(0);
         setHasShield(false);
@@ -359,18 +369,44 @@ export default function GamePage() {
         if (!firestore || !user) return;
         
         const isMobile = window.innerWidth < 768;
+        const newAchievements: AchievementId[] = [];
+        const currentAchievements = userProfile?.achievements || [];
+
+        if(currentScore >= 50 && !currentAchievements.includes('first-50')) newAchievements.push('first-50');
+        if(!collisionOccurredRef.current && currentScore > 0 && !currentAchievements.includes('flawless-run')) newAchievements.push('flawless-run');
+        if(slowMo.active && !currentAchievements.includes('slow-mo-master')) newAchievements.push('slow-mo-master');
+        
+        const totalGames = (userProfile?.gamesPlayed || 0) + 1;
+        if(totalGames >= 100 && !currentAchievements.includes('veteran-player')) newAchievements.push('veteran-player');
+
+        const totalXp = (userProfile?.xp || 0) + currentScore;
+        const currentLevel = userProfile?.level || 1;
+        const newLevel = Math.floor(totalXp / XP_PER_LEVEL) + 1;
+
         const eventData = {
             userId: user.uid,
             score: currentScore,
             difficulty: currentLevel.name,
             timestamp: serverTimestamp(),
             deviceType: isMobile ? 'mobile' : 'desktop',
+            gamesPlayed: increment(1)
         };
+
+        if (userProfileRef) {
+            let profileUpdate: any = { 
+                gamesPlayed: increment(1),
+                xp: increment(currentScore),
+            };
+            if(newLevel > currentLevel) profileUpdate.level = newLevel;
+            if(newAchievements.length > 0) profileUpdate.achievements = arrayUnion(...newAchievements);
+            
+            updateDocumentNonBlocking(userProfileRef, profileUpdate);
+        }
 
         const eventsCollection = collection(firestore, 'game_events');
         addDocumentNonBlocking(eventsCollection, eventData);
 
-    }, [firestore, user, currentLevel]);
+    }, [firestore, user, currentLevel, userProfile, slowMo.active]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {
@@ -578,6 +614,7 @@ export default function GamePage() {
                 playerRef.current.vel = 0;
             } else {
                 shouldEndGame = true;
+                collisionOccurredRef.current = true;
             }
         }
 
@@ -608,6 +645,7 @@ export default function GamePage() {
                         p.x = -p.w; 
                     } else {
                         shouldEndGame = true;
+                        collisionOccurredRef.current = true;
                     }
                 }
                 if (!p.passed && p.x + p.w < playerRef.current.x) {
@@ -1137,7 +1175,5 @@ export default function GamePage() {
         </main>
     );
 }
-
-    
 
     

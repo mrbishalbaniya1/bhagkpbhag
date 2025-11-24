@@ -98,6 +98,26 @@
         "highScore": {
             "type": "number",
             "description": "The user's highest score."
+        },
+        "xp": {
+          "type": "number",
+          "description": "The user's experience points."
+        },
+        "level": {
+          "type": "number",
+          "description": "The user's current level."
+        },
+        "avatarUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the user's avatar image."
+        },
+        "achievements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "An array of achievement IDs the user has earned."
         }
       },
       "required": [
@@ -260,6 +280,10 @@
                 "type": "string",
                 "enum": ["desktop", "mobile"],
                 "description": "The type of device the game was played on."
+            },
+            "gamesPlayed": {
+                "type": "number",
+                "description": "Total number of games played by the user."
             }
         },
         "required": ["userId", "timestamp", "score", "difficulty"]
@@ -450,3 +474,5 @@
     ]
   }
 }
+
+    
