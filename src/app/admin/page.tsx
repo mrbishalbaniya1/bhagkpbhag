@@ -19,6 +19,7 @@ import { Loader2, Trash2 } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/provider';
 import Image from 'next/image';
 import { Slider } from '@/components/ui/slider';
+import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 type GameLevelData = Omit<GameLevel, 'id'>;
 
@@ -186,26 +187,32 @@ const AdminPageContent: React.FC = () => {
             
             const docSnap = await getDoc(gameAssetsRef);
             const currentAssets = docSnap.exists() ? docSnap.data() as GameAssets : {};
+            let updateData: any;
 
             if (assetId === 'pipes') {
                 if (resourceType === 'image') { // Adding a new pipe image
                     const newPipeAsset: PipeAsset = { name: file.name, url: cloudinaryData.secure_url };
-                    updateDocumentNonBlocking(gameAssetsRef, { pipes: arrayUnion(newPipeAsset) });
+                    updateData = { pipes: arrayUnion(newPipeAsset) };
                 } else { // Adding/updating a collision sound for an existing pipe
                     if (pipeIndex !== undefined && currentAssets.pipes) {
                         const updatedPipes = [...currentAssets.pipes];
                         updatedPipes[pipeIndex].collisionSoundUrl = cloudinaryData.secure_url;
-                        updateDocumentNonBlocking(gameAssetsRef, { pipes: updatedPipes });
+                        updateData = { pipes: updatedPipes };
                     }
                 }
             } else {
                 const newAsset = { name: file.name, url: cloudinaryData.secure_url };
-                if (docSnap.exists()) {
-                    updateDocumentNonBlocking(gameAssetsRef, { [assetId]: newAsset });
+                updateData = { [assetId]: newAsset };
+            }
+
+            if (updateData) {
+                 if (docSnap.exists()) {
+                    updateDocumentNonBlocking(gameAssetsRef, updateData);
                 } else {
-                    setDocumentNonBlocking(gameAssetsRef, { [assetId]: newAsset }, {});
+                    setDocumentNonBlocking(gameAssetsRef, updateData, {});
                 }
             }
+
 
             toast({ title: 'Success', description: `'${file.name}' uploaded.` });
 
@@ -223,17 +230,28 @@ const AdminPageContent: React.FC = () => {
         if (!firestore || !gameAssetsRef || !gameAssets?.pipes) return;
         const updatedPipes = [...gameAssets.pipes];
         const pipeToDelete = updatedPipes.splice(pipeIndex, 1);
-        updateDocumentNonBlocking(gameAssetsRef, { pipes: updatedPipes });
+        const updateData = { pipes: updatedPipes };
+        updateDocumentNonBlocking(gameAssetsRef, updateData);
         toast({ title: 'Success', description: `Pipe asset '${pipeToDelete[0].name}' deleted.` });
     };
 
-    const handleDeleteAsset = async (assetId: keyof GameAssets) => {
+    const handleDeleteAsset = (assetId: keyof GameAssets) => {
         if (!firestore || !gameAssetsRef) return;
         const assetName = (gameAssets?.[assetId] as GameAsset)?.name || assetId;
-        await updateDoc(gameAssetsRef, {
-            [assetId]: deleteField()
-        });
-        toast({ title: 'Success', description: `Asset '${assetName}' has been deleted.` });
+        const updateData = { [assetId]: deleteField() };
+
+        updateDoc(gameAssetsRef, updateData)
+            .then(() => {
+                toast({ title: 'Success', description: `Asset '${assetName}' has been deleted.` });
+            })
+            .catch(() => {
+                const permissionError = new FirestorePermissionError({
+                    path: gameAssetsRef.path,
+                    operation: 'update',
+                    requestResourceData: updateData,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -603,3 +621,5 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
+
+    
