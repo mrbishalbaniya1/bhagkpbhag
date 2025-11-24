@@ -26,6 +26,12 @@ interface PipeAsset {
     collisionSoundUrl?: string;
 }
 
+interface AdminSettings {
+    useCustomVisuals?: boolean;
+    useCustomAudio?: boolean;
+}
+
+
 interface GameAssets {
     bg?: GameAsset;
     player?: GameAsset;
@@ -87,6 +93,10 @@ export default function GamePage() {
 
     const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
     const { data: gameAssets, isLoading: assetsLoading } = useDoc<GameAssets>(gameAssetsRef);
+    
+    const adminSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'admin') : null, [firestore]);
+    const { data: adminSettings, isLoading: settingsLoading } = useDoc<AdminSettings>(adminSettingsRef);
+
     
     const userProfileRef = useMemoFirebase(() => firestore && user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile } = useDoc<UserProfile>(userProfileRef);
@@ -238,8 +248,11 @@ export default function GamePage() {
     }, [user, userProfile, gameLevels]);
 
     useEffect(() => {
-        if (assetsLoading) return;
+        if (assetsLoading || settingsLoading) return;
 
+        const useCustomVisuals = adminSettings?.useCustomVisuals ?? true;
+        const useCustomAudio = adminSettings?.useCustomAudio ?? true;
+        
         const placeholderImages = getPlaceholderImages();
         
         const defaultAssets = {
@@ -252,17 +265,17 @@ export default function GamePage() {
             doubleScore: placeholderImages.find(p => p.id === 'game-doubleScore')?.imageUrl,
         }
 
-        const bgUrl = gameAssets?.bg?.url || defaultAssets.bg;
-        const playerUrl = gameAssets?.player?.url || defaultAssets.player;
-        const pipeAssets = gameAssets?.pipes && gameAssets.pipes.length > 0
+        const bgUrl = useCustomVisuals && gameAssets?.bg?.url ? gameAssets.bg.url : defaultAssets.bg;
+        const playerUrl = useCustomVisuals && gameAssets?.player?.url ? gameAssets.player.url : defaultAssets.player;
+        const pipeAssets = useCustomVisuals && gameAssets?.pipes && gameAssets.pipes.length > 0
             ? gameAssets.pipes
             : [{ name: 'default-pipe', url: defaultAssets.pipe as string, collisionSoundUrl: undefined }];
 
         const collectibleAssetUrls = {
-            coin: gameAssets?.coin?.url || defaultAssets.coin,
-            shield: gameAssets?.shield?.url || defaultAssets.shield,
-            slowMo: gameAssets?.slowMo?.url || defaultAssets.slowMo,
-            doubleScore: gameAssets?.doubleScore?.url || defaultAssets.doubleScore,
+            coin: useCustomVisuals && gameAssets?.coin?.url ? gameAssets.coin.url : defaultAssets.coin,
+            shield: useCustomVisuals && gameAssets?.shield?.url ? gameAssets.shield.url : defaultAssets.shield,
+            slowMo: useCustomVisuals && gameAssets?.slowMo?.url ? gameAssets.slowMo.url : defaultAssets.slowMo,
+            doubleScore: useCustomVisuals && gameAssets?.doubleScore?.url ? gameAssets.doubleScore.url : defaultAssets.doubleScore,
         }
 
         let isMounted = true;
@@ -287,7 +300,7 @@ export default function GamePage() {
                         img.src = asset.url;
                         assetPromises.push(img.decode());
 
-                        if (asset.collisionSoundUrl) {
+                        if (useCustomAudio && asset.collisionSoundUrl) {
                             const audio = new Audio(asset.collisionSoundUrl);
                             audio.preload = 'auto';
                             assetPromises.push(new Promise((resolve, reject) => {
@@ -332,7 +345,7 @@ export default function GamePage() {
         return () => {
             isMounted = false;
         };
-    }, [gameAssets, assetsLoading]);
+    }, [gameAssets, assetsLoading, adminSettings, settingsLoading]);
 
 
     useEffect(() => {
@@ -365,12 +378,13 @@ export default function GamePage() {
 
 
     useEffect(() => {
-        if (!levelsLoading && !assetsLoading) {
+        if (!levelsLoading && !assetsLoading && !settingsLoading) {
             setGameState('ready');
         } else {
             setGameState('loading');
         }
-    }, [levelsLoading, assetsLoading]);
+    }, [levelsLoading, assetsLoading, settingsLoading]);
+
 
     const saveScoreToLeaderboard = useCallback((currentScore: number) => {
         if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || currentScore === 0) return;
@@ -990,6 +1004,9 @@ export default function GamePage() {
     }, [jump, gameState]);
 
     useEffect(() => {
+        const useCustomAudio = adminSettings?.useCustomAudio ?? true;
+        if (!useCustomAudio) return;
+
         if(audioRef.current){ audioRef.current.muted = isBgmMuted; }
         if(jumpAudioRef.current){ jumpAudioRef.current.muted = areSfxMuted; }
         if(collisionAudioRef.current){ collisionAudioRef.current.muted = areSfxMuted; }
@@ -1005,7 +1022,7 @@ export default function GamePage() {
             }
         });
 
-    }, [isBgmMuted, areSfxMuted]);
+    }, [isBgmMuted, areSfxMuted, adminSettings]);
 
     const handleRestart = () => {
         startGame();
@@ -1034,19 +1051,21 @@ export default function GamePage() {
             </div>
         );
     }
+    
+    const useCustomAudio = adminSettings?.useCustomAudio ?? true;
 
     return (
         <main className="relative w-screen h-screen overflow-hidden bg-background font-body select-none">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
             
-            {gameAssets?.bgMusic?.url && ( <audio ref={audioRef} src={gameAssets.bgMusic.url} loop playsInline /> )}
-            {gameAssets?.jumpSound?.url && ( <audio ref={jumpAudioRef} src={gameAssets.jumpSound.url} playsInline /> )}
-            {gameAssets?.collisionSound?.url && ( <audio ref={collisionAudioRef} src={gameAssets.collisionSound.url} playsInline /> )}
-            {gameAssets?.coinSound?.url && ( <audio ref={coinAudioRef} src={gameAssets.coinSound.url} playsInline /> )}
-            {gameAssets?.shieldSound?.url && ( <audio ref={shieldAudioRef} src={gameAssets.shieldSound.url} playsInline /> )}
-            {gameAssets?.slowMoSound?.url && ( <audio ref={slowMoAudioRef} src={gameAssets.slowMoSound.url} playsInline /> )}
-            {gameAssets?.doubleScoreSound?.url && ( <audio ref={doubleScoreAudioRef} src={gameAssets.doubleScoreSound.url} playsInline /> )}
-            {gameAssets?.pipePassSound?.url && ( <audio ref={pipePassAudioRef} src={gameAssets.pipePassSound.url} playsInline /> )}
+            {useCustomAudio && gameAssets?.bgMusic?.url && ( <audio ref={audioRef} src={gameAssets.bgMusic.url} loop playsInline /> )}
+            {useCustomAudio && gameAssets?.jumpSound?.url && ( <audio ref={jumpAudioRef} src={gameAssets.jumpSound.url} playsInline /> )}
+            {useCustomAudio && gameAssets?.collisionSound?.url && ( <audio ref={collisionAudioRef} src={gameAssets.collisionSound.url} playsInline /> )}
+            {useCustomAudio && gameAssets?.coinSound?.url && ( <audio ref={coinAudioRef} src={gameAssets.coinSound.url} playsInline /> )}
+            {useCustomAudio && gameAssets?.shieldSound?.url && ( <audio ref={shieldAudioRef} src={gameAssets.shieldSound.url} playsInline /> )}
+            {useCustomAudio && gameAssets?.slowMoSound?.url && ( <audio ref={slowMoAudioRef} src={gameAssets.slowMoSound.url} playsInline /> )}
+            {useCustomAudio && gameAssets?.doubleScoreSound?.url && ( <audio ref={doubleScoreAudioRef} src={gameAssets.doubleScoreSound.url} playsInline /> )}
+            {useCustomAudio && gameAssets?.pipePassSound?.url && ( <audio ref={pipePassAudioRef} src={gameAssets.pipePassSound.url} playsInline /> )}
             
             {gameState !== 'loading' && gameState !== 'ready' && (
                 <>

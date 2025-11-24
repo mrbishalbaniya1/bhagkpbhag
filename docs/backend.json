@@ -159,6 +159,14 @@
         "welcomeMessage": {
           "type": "string",
           "description": "A global welcome message for all users."
+        },
+        "useCustomVisuals": {
+          "type": "boolean",
+          "description": "If true, the game will use custom uploaded visual assets. Otherwise, it will use default assets."
+        },
+        "useCustomAudio": {
+          "type": "boolean",
+          "description": "If true, the game will use custom uploaded audio assets. Otherwise, it will use default sounds."
         }
       }
     },

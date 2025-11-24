@@ -20,6 +20,7 @@ import { useMemoFirebase } from '@/firebase/provider';
 import Image from 'next/image';
 import { Slider } from '@/components/ui/slider';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
+import { Switch } from '@/components/ui/switch';
 
 type GameLevelData = Omit<GameLevel, 'id'>;
 
@@ -32,6 +33,13 @@ interface PipeAsset {
     name: string;
     url: string;
     collisionSoundUrl?: string;
+}
+
+interface AdminSettings {
+    maintenanceMode?: boolean;
+    welcomeMessage?: string;
+    useCustomVisuals?: boolean;
+    useCustomAudio?: boolean;
 }
 
 
@@ -71,6 +79,10 @@ const AdminPageContent: React.FC = () => {
 
     const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
     const { data: gameAssets, isLoading: assetsLoading } = useDoc<GameAssets>(gameAssetsRef);
+    
+    const adminSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'admin') : null, [firestore]);
+    const { data: adminSettings, isLoading: settingsLoading } = useDoc<AdminSettings>(adminSettingsRef);
+
 
     const [formData, setFormData] = useState<GameLevelData>({
         name: '',
@@ -291,6 +303,12 @@ const AdminPageContent: React.FC = () => {
         deleteDocumentNonBlocking(levelRef);
         toast({ title: 'Success', description: 'Game level draft deleted.' });
     };
+    
+    const handleSettingsToggle = (setting: keyof AdminSettings) => (checked: boolean) => {
+        if (!adminSettingsRef) return;
+        updateDocumentNonBlocking(adminSettingsRef, { [setting]: checked });
+    };
+
 
     const AssetUploadCard: React.FC<{assetId: keyof GameAssets, label: string, isUploading: boolean}> = ({ assetId, label, isUploading }) => (
         <div className="space-y-2">
@@ -366,7 +384,7 @@ const AdminPageContent: React.FC = () => {
     );
 
 
-    if (isUserLoading || (isAdmin && levelsLoading) || assetsLoading) {
+    if (isUserLoading || (isAdmin && (levelsLoading || assetsLoading || settingsLoading))) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -394,6 +412,32 @@ const AdminPageContent: React.FC = () => {
                 <h1 className="text-3xl font-bold">Admin Panel</h1>
                 <Button onClick={() => auth?.signOut()}>Sign Out</Button>
             </header>
+
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>Global Asset Settings</CardTitle>
+                    <CardDescription>Globally enable or disable all custom visuals and audio. When disabled, the game will use default assets.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid md:grid-cols-2 gap-6">
+                    <div className="flex items-center space-x-2">
+                        <Switch
+                            id="useCustomVisuals"
+                            checked={adminSettings?.useCustomVisuals ?? true}
+                            onCheckedChange={handleSettingsToggle('useCustomVisuals')}
+                        />
+                        <Label htmlFor="useCustomVisuals">Enable Custom Visuals</Label>
+                    </div>
+                     <div className="flex items-center space-x-2">
+                        <Switch
+                            id="useCustomAudio"
+                            checked={adminSettings?.useCustomAudio ?? true}
+                            onCheckedChange={handleSettingsToggle('useCustomAudio')}
+                        />
+                        <Label htmlFor="useCustomAudio">Enable Custom Audio</Label>
+                    </div>
+                </CardContent>
+            </Card>
+
 
             <Card className="mb-8">
                 <CardHeader>
@@ -621,5 +665,3 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
-
-    
