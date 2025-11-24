@@ -408,21 +408,21 @@ export default function GamePage() {
     }, [firestore, user, userProfile, currentLevel.name, gameMode]);
 
     const logGameEvent = useCallback((finalScore: number) => {
-        if (!firestore || !user || !currentLevel) return;
+        if (!firestore || !user || !currentLevel || !userProfile) return;
         
         const isMobile = window.innerWidth < 768;
         const newAchievements: AchievementId[] = [];
-        const currentAchievements = userProfile?.achievements || [];
+        const currentAchievements = userProfile.achievements || [];
 
         if(finalScore >= 50 && !currentAchievements.includes('first-50')) newAchievements.push('first-50');
         if(!collisionOccurredRef.current && finalScore > 0 && !currentAchievements.includes('flawless-run')) newAchievements.push('flawless-run');
         if(slowMo.active && !currentAchievements.includes('slow-mo-master')) newAchievements.push('slow-mo-master');
         
-        const totalGames = (userProfile?.gamesPlayed || 0) + 1;
+        const totalGames = (userProfile.gamesPlayed || 0) + 1;
         if(totalGames >= 100 && !currentAchievements.includes('veteran-player')) newAchievements.push('veteran-player');
 
-        const totalXp = (userProfile?.xp || 0) + finalScore;
-        const currentLvl = userProfile?.level || 1;
+        const totalXp = (userProfile.xp || 0) + finalScore;
+        const currentLvl = userProfile.level || 1;
         const newLevel = Math.floor(totalXp / XP_PER_LEVEL) + 1;
 
         const eventData = {
@@ -431,7 +431,6 @@ export default function GamePage() {
             difficulty: currentLevel.name,
             timestamp: serverTimestamp(),
             deviceType: isMobile ? 'mobile' : 'desktop',
-            gamesPlayed: increment(1)
         };
 
         if (userProfileRef) {
@@ -933,8 +932,6 @@ export default function GamePage() {
             // This is the CRITICAL part. Update the state THEN set game to over.
             const finalScore = scoreRef.current;
             const finalCoins = coinsRef.current;
-            setScore(finalScore);
-            setCoins(finalCoins);
 
             if (gameMode !== 'zen') {
                 const isNewHighScore = finalScore > highScore;
@@ -954,9 +951,14 @@ export default function GamePage() {
                     updateDocumentNonBlocking(userProfileRef, { lastGame: lastGameSummary });
                 }
                 saveScoreToLeaderboard(finalScore);
-                logGameEvent(finalScore);
+                if (userProfile) {
+                    logGameEvent(finalScore);
+                }
             }
             
+            // Set state AFTER all logic is complete
+            setScore(finalScore);
+            setCoins(finalCoins);
             setLeaderboardPage(0);
             setGameState('over');
 
@@ -964,7 +966,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, highScore]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfile, userProfileRef, timeLeft, weather, highScore]);
 
     useEffect(() => {
         if (gameState === 'playing') {
@@ -1259,5 +1261,3 @@ export default function GamePage() {
         </main>
     );
 }
-
-    
