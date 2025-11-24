@@ -929,34 +929,35 @@ export default function GamePage() {
 
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
 
-            // This is the CRITICAL part. Update the state THEN set game to over.
             const finalScore = scoreRef.current;
             const finalCoins = coinsRef.current;
 
             if (gameMode !== 'zen') {
-                const isNewHighScore = finalScore > highScore;
-                const lastGameSummary = {
-                    score: finalScore,
-                    coins: finalCoins,
-                    difficulty: currentLevel.name,
-                };
-                 if (isNewHighScore) {
-                    setHighScore(finalScore);
-                    if (user && !user.isAnonymous && firestore && userProfileRef) {
-                        updateDocumentNonBlocking(userProfileRef, { highScore: finalScore, lastGame: lastGameSummary });
-                    } else if (typeof window !== 'undefined') {
-                        localStorage.setItem("BhagKpBhag_high", finalScore.toString());
-                    }
-                } else if (user && !user.isAnonymous && firestore && userProfileRef) {
-                    updateDocumentNonBlocking(userProfileRef, { lastGame: lastGameSummary });
-                }
-                saveScoreToLeaderboard(finalScore);
                 if (userProfile) {
                     logGameEvent(finalScore);
                 }
+                const isNewHighScore = finalScore > highScore;
+                if (isNewHighScore) {
+                    setHighScore(finalScore);
+                    if (user && !user.isAnonymous && firestore && userProfileRef) {
+                        updateDocumentNonBlocking(userProfileRef, { highScore: finalScore });
+                    } else if (typeof window !== 'undefined') {
+                        localStorage.setItem("BhagKpBhag_high", finalScore.toString());
+                    }
+                }
+                if (user && !user.isAnonymous && userProfileRef) {
+                    updateDocumentNonBlocking(userProfileRef, { 
+                        lastGame: {
+                            score: finalScore,
+                            coins: finalCoins,
+                            difficulty: currentLevel.name,
+                        }
+                    });
+                }
+                saveScoreToLeaderboard(finalScore);
             }
             
-            // Set state AFTER all logic is complete
+            // Set state right before changing gameState
             setScore(finalScore);
             setCoins(finalCoins);
             setLeaderboardPage(0);
