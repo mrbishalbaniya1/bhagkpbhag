@@ -642,7 +642,9 @@ export default function GamePage() {
         playerRef.current.y += playerRef.current.vel;
         
         let shouldEndGame = false;
+        let playDefaultCollisionSound = false;
         let pipeCollisionSoundToPlay: HTMLAudioElement | undefined = undefined;
+
 
         if ((playerRef.current.y < 0 || playerRef.current.y + playerRef.current.h > ch) && gameMode !== 'zen') {
             if (hasShield) {
@@ -652,6 +654,7 @@ export default function GamePage() {
             } else {
                 shouldEndGame = true;
                 collisionOccurredRef.current = true;
+                playDefaultCollisionSound = true;
             }
         }
 
@@ -685,6 +688,8 @@ export default function GamePage() {
                         collisionOccurredRef.current = true;
                         if (p.collisionSound) {
                             pipeCollisionSoundToPlay = p.collisionSound;
+                        } else {
+                            playDefaultCollisionSound = true;
                         }
                     }
                 }
@@ -901,26 +906,27 @@ export default function GamePage() {
         }
 
         if (shouldEndGame || (gameMode === 'timeAttack' && timeLeft <= 0)) {
-             if (gameLoopRef.current) {
+            if (gameLoopRef.current) {
                 cancelAnimationFrame(gameLoopRef.current);
             }
             audioRef.current?.pause();
-            if(shouldEndGame && !areSfxMuted) {
+
+            if (shouldEndGame && !areSfxMuted) {
                 if (pipeCollisionSoundToPlay) {
                     pipeCollisionSoundToPlay.play().catch(e => console.error("Pipe collision sound failed:", e));
-                } else {
+                } else if (playDefaultCollisionSound) {
                     collisionAudioRef.current?.play().catch(e => console.error("Default collision sound failed:", e));
                 }
             }
+
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
 
-            // Get final values from state setters to avoid race conditions
+            // This is the CRITICAL part. Update the state THEN set game to over.
             let finalScore = 0;
             let finalCoins = 0;
             setScore(s => { finalScore = s; return s; });
             setCoins(c => { finalCoins = c; return c; });
-            
-            // This is the CRITICAL part. Update the state THEN set game to over.
+
             if (gameMode !== 'zen') {
                 const isNewHighScore = finalScore > highScore;
                 const lastGameSummary = {
@@ -1157,7 +1163,7 @@ export default function GamePage() {
                                     </>
                                 )}
                                 <div className="space-y-4 mt-6">
-                                    <Button size="lg" onClick={handleRestart} className="w-full transition-transform duration-200 hover:scale-105 animate-pulse">
+                                    <Button size="lg" onClick={handleRestart} className="w-full transition-transform duration-200 hover:scale-105">
                                         Restart
                                     </Button>
                                     {user && !user.isAnonymous && (
