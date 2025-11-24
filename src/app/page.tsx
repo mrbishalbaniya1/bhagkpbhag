@@ -14,7 +14,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Link from 'next/link';
 import { ShieldCheck } from 'lucide-react';
-import { generateCommentary } from '@/ai/flows/generate-commentary-flow';
 
 interface GameAsset {
     name: string;
@@ -66,14 +65,6 @@ interface LeaderboardEntry {
 }
 
 const XP_PER_LEVEL = 1000;
-
-const commentaryPhrases = [
-    "फेरी प्रयास गर्नुहोस्!", // Try again!
-    "राम्रो प्रयास!", // Good effort!
-    "तपाईं झन्डै पुग्नुभयो!", // You were so close!
-    "धेरै राम्रो खेल!", // Very good game!
-    "हार नमान्नुहोस्!", // Don't give up!
-];
 
 export default function GamePage() {
     const { user } = useUser();
@@ -135,7 +126,6 @@ export default function GamePage() {
     const audioRef = useRef<HTMLAudioElement>(null);
     const jumpAudioRef = useRef<HTMLAudioElement>(null);
     const collisionAudioRef = useRef<HTMLAudioElement>(null);
-    const commentaryAudioRef = useRef<HTMLAudioElement>(null);
 
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
@@ -372,27 +362,6 @@ export default function GamePage() {
         }
     }, [levelsLoading, assetsLoading]);
 
-    const playCommentary = useCallback(async (isNewHighScore: boolean) => {
-        if (areSfxMuted) return;
-
-        // Only play special commentary for new high scores to avoid rate limits
-        const phrase = isNewHighScore
-            ? "उत्कृष्ट! नयाँ उच्च स्कोर!" // "Excellent! New high score!"
-            : commentaryPhrases[Math.floor(Math.random() * commentaryPhrases.length)];
-
-        try {
-            const { audioDataUri } = await generateCommentary({ phrase });
-            if (commentaryAudioRef.current) {
-                commentaryAudioRef.current.src = audioDataUri;
-                commentaryAudioRef.current.play().catch(e => console.error("Commentary audio play failed:", e));
-            }
-        } catch (error) {
-            // Log the error but don't crash the game.
-            // This can happen if the API key is missing or due to rate limits.
-            console.error('Failed to generate or play commentary:', error);
-        }
-    }, [areSfxMuted]);
-
     const saveScoreToLeaderboard = useCallback((currentScore: number) => {
         if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || currentScore === 0) return;
 
@@ -407,27 +376,29 @@ export default function GamePage() {
         addDocumentNonBlocking(leaderboardCollection, scoreData);
     }, [firestore, user, userProfile, currentLevel.name, gameMode]);
 
-    const logGameEvent = useCallback((currentScore: number) => {
+    const logGameEvent = useCallback(() => {
         if (!firestore || !user || !currentLevel) return;
+        
+        const finalScore = scoreRef.current;
         
         const isMobile = window.innerWidth < 768;
         const newAchievements: AchievementId[] = [];
         const currentAchievements = userProfile?.achievements || [];
 
-        if(currentScore >= 50 && !currentAchievements.includes('first-50')) newAchievements.push('first-50');
-        if(!collisionOccurredRef.current && currentScore > 0 && !currentAchievements.includes('flawless-run')) newAchievements.push('flawless-run');
+        if(finalScore >= 50 && !currentAchievements.includes('first-50')) newAchievements.push('first-50');
+        if(!collisionOccurredRef.current && finalScore > 0 && !currentAchievements.includes('flawless-run')) newAchievements.push('flawless-run');
         if(slowMo.active && !currentAchievements.includes('slow-mo-master')) newAchievements.push('slow-mo-master');
         
         const totalGames = (userProfile?.gamesPlayed || 0) + 1;
         if(totalGames >= 100 && !currentAchievements.includes('veteran-player')) newAchievements.push('veteran-player');
 
-        const totalXp = (userProfile?.xp || 0) + currentScore;
+        const totalXp = (userProfile?.xp || 0) + finalScore;
         const currentLvl = userProfile?.level || 1;
         const newLevel = Math.floor(totalXp / XP_PER_LEVEL) + 1;
 
         const eventData = {
             userId: user.uid,
-            score: currentScore,
+            score: finalScore,
             difficulty: currentLevel.name,
             timestamp: serverTimestamp(),
             deviceType: isMobile ? 'mobile' : 'desktop',
@@ -437,7 +408,7 @@ export default function GamePage() {
         if (userProfileRef) {
             let profileUpdate: any = { 
                 gamesPlayed: increment(1),
-                xp: increment(currentScore),
+                xp: increment(finalScore),
             };
             if(newLevel > currentLvl) profileUpdate.level = newLevel;
             if(newAchievements.length > 0) profileUpdate.achievements = arrayUnion(...newAchievements);
@@ -448,7 +419,7 @@ export default function GamePage() {
         const eventsCollection = collection(firestore, 'game_events');
         addDocumentNonBlocking(eventsCollection, eventData);
 
-    }, [firestore, user, currentLevel, userProfile, slowMo.active]);
+    }, [firestore, user, currentLevel, userProfile, slowMo.active, userProfileRef]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {
@@ -927,8 +898,7 @@ export default function GamePage() {
                     updateDocumentNonBlocking(userProfileRef, { lastGame: lastGameSummary });
                 }
                 saveScoreToLeaderboard(finalScore);
-                logGameEvent(finalScore);
-                playCommentary(isNewHighScore);
+                logGameEvent();
             }
             
             setLeaderboardPage(0);
@@ -938,7 +908,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, playCommentary, areSfxMuted]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, areSfxMuted]);
 
     useEffect(() => {
         if (gameState === 'playing') {
@@ -948,6 +918,9 @@ export default function GamePage() {
         } else {
             if (gameLoopRef.current) {
                 cancelAnimationFrame(gameLoopRef.current);
+            }
+            if (timeAttackIntervalRef.current) {
+                clearInterval(timeAttackIntervalRef.current);
             }
         }
         return () => {
@@ -999,9 +972,6 @@ export default function GamePage() {
         if(collisionAudioRef.current){
             collisionAudioRef.current.muted = areSfxMuted;
         }
-        if (commentaryAudioRef.current) {
-            commentaryAudioRef.current.muted = areSfxMuted;
-        }
     }, [isBgmMuted, areSfxMuted]);
 
     const handleRestart = () => {
@@ -1036,7 +1006,6 @@ export default function GamePage() {
         <main className="relative w-screen h-screen overflow-hidden bg-background font-body select-none">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
             
-            <audio ref={commentaryAudioRef} playsInline />
             {gameAssets?.bgMusic?.url && (
                 <audio ref={audioRef} src={gameAssets.bgMusic.url} loop playsInline />
             )}
@@ -1222,5 +1191,3 @@ export default function GamePage() {
         </main>
     );
 }
-
-    
