@@ -278,6 +278,13 @@
             "name": { "type": "string" },
             "url": { "type": "string", "format": "uri" }
           }
+        },
+        "pipePassSound": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string", "format": "uri" }
+          }
         }
       }
     },

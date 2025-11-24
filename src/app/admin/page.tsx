@@ -42,6 +42,7 @@ interface GameAssets {
     shieldSound?: GameAsset;
     slowMoSound?: GameAsset;
     doubleScoreSound?: GameAsset;
+    pipePassSound?: GameAsset;
 }
 
 const AdminPageContent: React.FC = () => {
@@ -160,7 +161,7 @@ const AdminPageContent: React.FC = () => {
         cloudinaryFormData.append('file', file);
         cloudinaryFormData.append('upload_preset', 'ml_default');
         
-        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound', 'coinSound', 'shieldSound', 'slowMoSound', 'doubleScoreSound'].includes(assetId as string) ? 'video' : 'image';
+        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound', 'coinSound', 'shieldSound', 'slowMoSound', 'doubleScoreSound', 'pipePassSound'].includes(assetId as string) ? 'video' : 'image';
 
         try {
             const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
@@ -440,10 +441,11 @@ const AdminPageContent: React.FC = () => {
                     <CardDescription>Manage the background music and sound effects for game events like jumping and collisions.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                     <div className="grid md:grid-cols-3 gap-8">
+                     <div className="grid md:grid-cols-4 gap-8">
                        <AudioUploadCard assetId="bgMusic" label="Background Music" isUploading={!!uploadingStates['bgMusic']} />
                        <AudioUploadCard assetId="jumpSound" label="Jump Sound" isUploading={!!uploadingStates['jumpSound']} />
                        <AudioUploadCard assetId="collisionSound" label="Collision Sound" isUploading={!!uploadingStates['collisionSound']} />
+                       <AudioUploadCard assetId="pipePassSound" label="Pipe Pass Sound" isUploading={!!uploadingStates['pipePassSound']} />
                     </div>
                 </CardContent>
             </Card>

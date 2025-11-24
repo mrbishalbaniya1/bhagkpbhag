@@ -35,6 +35,7 @@ interface GameAssets {
     shieldSound?: GameAsset;
     slowMoSound?: GameAsset;
     doubleScoreSound?: GameAsset;
+    pipePassSound?: GameAsset;
 }
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
@@ -134,6 +135,7 @@ export default function GamePage() {
     const shieldAudioRef = useRef<HTMLAudioElement>(null);
     const slowMoAudioRef = useRef<HTMLAudioElement>(null);
     const doubleScoreAudioRef = useRef<HTMLAudioElement>(null);
+    const pipePassAudioRef = useRef<HTMLAudioElement>(null);
 
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
@@ -652,6 +654,7 @@ export default function GamePage() {
                 }
                 if (!p.passed && p.x + p.w < playerRef.current.x) {
                     p.passed = true;
+                    if (!areSfxMuted) pipePassAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
                     const points = doubleScore.active ? 2 : 1;
                     setScore(s => s + points);
                     createFloatingText(`+${points}`, playerRef.current.x + playerRef.current.w / 2, playerRef.current.y);
@@ -967,6 +970,7 @@ export default function GamePage() {
         if(shieldAudioRef.current){ shieldAudioRef.current.muted = areSfxMuted; }
         if(slowMoAudioRef.current){ slowMoAudioRef.current.muted = areSfxMuted; }
         if(doubleScoreAudioRef.current){ doubleScoreAudioRef.current.muted = areSfxMuted; }
+        if(pipePassAudioRef.current){ pipePassAudioRef.current.muted = areSfxMuted; }
     }, [isBgmMuted, areSfxMuted]);
 
     const handleRestart = () => {
@@ -1008,6 +1012,7 @@ export default function GamePage() {
             {gameAssets?.shieldSound?.url && ( <audio ref={shieldAudioRef} src={gameAssets.shieldSound.url} playsInline /> )}
             {gameAssets?.slowMoSound?.url && ( <audio ref={slowMoAudioRef} src={gameAssets.slowMoSound.url} playsInline /> )}
             {gameAssets?.doubleScoreSound?.url && ( <audio ref={doubleScoreAudioRef} src={gameAssets.doubleScoreSound.url} playsInline /> )}
+            {gameAssets?.pipePassSound?.url && ( <audio ref={pipePassAudioRef} src={gameAssets.pipePassSound.url} playsInline /> )}
             
             {gameState !== 'loading' && gameState !== 'ready' && (
                 <>
