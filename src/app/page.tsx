@@ -112,6 +112,9 @@ export default function GamePage() {
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
     const [coins, setCoins] = useState(0);
+
+    const scoreRef = useRef(0);
+    const coinsRef = useRef(0);
     
     // Audio states
     const [bgmVolume, setBgmVolume] = useState(0.5);
@@ -201,8 +204,12 @@ export default function GamePage() {
         setWeather('clear');
         fogRef.current = { alpha: 0, targetAlpha: 0 };
         collisionOccurredRef.current = false;
+        
         setScore(0);
         setCoins(0);
+        scoreRef.current = 0;
+        coinsRef.current = 0;
+        
         setHasShield(false);
         setSlowMo({ active: false, timer: 0 });
         setDoubleScore({ active: false, timer: 0 });
@@ -697,6 +704,7 @@ export default function GamePage() {
                     p.passed = true;
                     pipePassAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
                     const points = doubleScore.active ? 2 : 1;
+                    scoreRef.current += points;
                     setScore(s => s + points);
                     createFloatingText(`+${points}`, playerRef.current.x + playerRef.current.w / 2, playerRef.current.y);
                 }
@@ -716,7 +724,10 @@ export default function GamePage() {
                     case 'doubleScore': doubleScoreAudioRef.current?.play().catch(e => console.error("Audio play failed:", e)); break;
                 }
                 switch(c.type) {
-                    case 'coin': setCoins(cs => cs + 1); break;
+                    case 'coin': 
+                        coinsRef.current += 1;
+                        setCoins(cs => cs + 1);
+                        break;
                     case 'shield': setHasShield(true); break;
                     case 'slowMo': setSlowMo({ active: true, timer: POWERUP_DURATION }); break;
                     case 'doubleScore': setDoubleScore({ active: true, timer: POWERUP_DURATION }); break;
@@ -920,8 +931,10 @@ export default function GamePage() {
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
 
             // This is the CRITICAL part. Update the state THEN set game to over.
-            let finalScore = score;
-            let finalCoins = coins;
+            const finalScore = scoreRef.current;
+            const finalCoins = coinsRef.current;
+            setScore(finalScore);
+            setCoins(finalCoins);
 
             if (gameMode !== 'zen') {
                 const isNewHighScore = finalScore > highScore;
@@ -951,7 +964,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, highScore, coins, score]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, highScore]);
 
     useEffect(() => {
         if (gameState === 'playing') {
@@ -1246,3 +1259,5 @@ export default function GamePage() {
         </main>
     );
 }
+
+    
