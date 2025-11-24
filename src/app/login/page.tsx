@@ -37,7 +37,6 @@ export default function LoginPage() {
             toast({ title: 'Account Created!', description: 'You are now signed in.' });
             router.push('/');
         } catch (error: any) {
-            console.error("Sign-up error:", error);
             if (error.code === 'auth/email-already-in-use') {
                 toast({
                     variant: 'destructive',
