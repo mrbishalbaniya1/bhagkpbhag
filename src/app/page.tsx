@@ -340,6 +340,7 @@ export default function GamePage() {
     }, [firestore, user, score, currentLevel]);
 
     const endGame = useCallback(() => {
+        if (gameState === 'over') return;
         setGameState('over');
         audioRef.current?.pause();
         collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
@@ -358,7 +359,7 @@ export default function GamePage() {
             saveScoreToLeaderboard();
             logGameEvent();
         }
-    }, [score, highScore, gameMode, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef]);
+    }, [score, highScore, gameMode, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, gameState]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {
@@ -743,8 +744,6 @@ export default function GamePage() {
     }, [isMuted]);
 
     const handleRestart = () => {
-        resetGame();
-        setGameState('ready');
         startGame();
     };
 
@@ -921,3 +920,5 @@ export default function GamePage() {
         </main>
     );
 }
+
+    
