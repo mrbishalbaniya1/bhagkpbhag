@@ -99,7 +99,11 @@ export default function GamePage() {
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
     const [coins, setCoins] = useState(0);
-    const [isMuted, setIsMuted] = useState(false);
+    
+    // Audio states
+    const [isBgmMuted, setIsBgmMuted] = useState(false);
+    const [areSfxMuted, setAreSfxMuted] = useState(false);
+    const [showMuteButton, setShowMuteButton] = useState(true);
     
     const [leaderboardPage, setLeaderboardPage] = useState(0);
     const LEADERBOARD_PAGE_SIZE = 3;
@@ -163,6 +167,13 @@ export default function GamePage() {
       coinsRef.current = coins;
     }, [coins]);
 
+    // Load audio settings from local storage
+    useEffect(() => {
+        const bgm = localStorage.getItem('bhagkp-bgm-muted') === 'true';
+        const sfx = localStorage.getItem('bhagkp-sfx-muted') === 'true';
+        setIsBgmMuted(bgm);
+        setAreSfxMuted(sfx);
+    }, []);
 
     const resetGame = useCallback(() => {
         const canvas = canvasRef.current;
@@ -362,7 +373,7 @@ export default function GamePage() {
     }, [levelsLoading, assetsLoading]);
 
     const playCommentary = useCallback(async () => {
-        if (isMuted) return;
+        if (areSfxMuted) return;
         try {
             const randomPhrase = commentaryPhrases[Math.floor(Math.random() * commentaryPhrases.length)];
             const { audioDataUri } = await generateCommentary({ phrase: randomPhrase });
@@ -374,7 +385,7 @@ export default function GamePage() {
         } catch (error) {
             console.error('Failed to generate or play commentary:', error);
         }
-    }, [isMuted]);
+    }, [areSfxMuted]);
 
     const saveScoreToLeaderboard = useCallback((currentScore: number) => {
         if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || currentScore === 0) return;
@@ -479,15 +490,15 @@ export default function GamePage() {
         if (!currentLevel) return;
         if (gameState === 'playing') {
             playerRef.current.vel = currentLevel.lift;
-            jumpAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+            if (!areSfxMuted) jumpAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
             createJumpParticles();
         } else if (gameState === 'ready' && imagesLoaded) {
             startGame();
             playerRef.current.vel = currentLevel.lift;
-            jumpAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+            if (!areSfxMuted) jumpAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
             createJumpParticles();
         }
-    }, [gameState, currentLevel, startGame, imagesLoaded, createJumpParticles]);
+    }, [gameState, currentLevel, startGame, imagesLoaded, createJumpParticles, areSfxMuted]);
 
     const handlePowerUpTimers = useCallback(() => {
         if (slowMo.active) {
@@ -880,7 +891,9 @@ export default function GamePage() {
                 cancelAnimationFrame(gameLoopRef.current);
             }
             audioRef.current?.pause();
-            if(shouldEndGame) collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+            if(shouldEndGame) {
+                if (!areSfxMuted) collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+            }
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
 
             const finalScore = scoreRef.current;
@@ -919,7 +932,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, playCommentary]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, playCommentary, areSfxMuted]);
 
     useEffect(() => {
         if (gameState === 'playing') {
@@ -972,25 +985,21 @@ export default function GamePage() {
 
     useEffect(() => {
         if(audioRef.current){
-            audioRef.current.muted = isMuted;
+            audioRef.current.muted = isBgmMuted;
         }
         if(jumpAudioRef.current){
-            jumpAudioRef.current.muted = isMuted;
+            jumpAudioRef.current.muted = areSfxMuted;
         }
         if(collisionAudioRef.current){
-            collisionAudioRef.current.muted = isMuted;
+            collisionAudioRef.current.muted = areSfxMuted;
         }
         if (commentaryAudioRef.current) {
-            commentaryAudioRef.current.muted = isMuted;
+            commentaryAudioRef.current.muted = areSfxMuted;
         }
-    }, [isMuted]);
+    }, [isBgmMuted, areSfxMuted]);
 
     const handleRestart = () => {
         startGame();
-    };
-
-    const toggleMute = () => {
-        setIsMuted(!isMuted);
     };
     
     const formatDate = (timestamp: LeaderboardEntry['createdAt']) => {
@@ -1043,9 +1052,11 @@ export default function GamePage() {
                             {doubleScore.active && <span className="text-yellow-400 font-bold">x2!</span>}
                             </div>
                         </div>
-                        <Button variant="outline" size="icon" onClick={toggleMute} className="bg-background/50 border-foreground/50">
-                            {isMuted ? <VolumeX className="h-5 w-5"/> : <Volume2 className="h-5 w-5"/>}
-                        </Button>
+                         {showMuteButton && <Button asChild variant="outline" size="icon" className="bg-background/50 border-foreground/50">
+                            <Link href="/account">
+                                <Music className="h-5 w-5"/>
+                            </Link>
+                         </Button>}
                     </div>
                     <div className="absolute top-4 right-4 z-10 text-right text-foreground drop-shadow-lg">
                         {gameMode !== 'zen' && <div className="text-3xl font-bold">{score}</div>}
@@ -1205,3 +1216,5 @@ export default function GamePage() {
         </main>
     );
 }
+
+    

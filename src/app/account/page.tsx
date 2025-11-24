@@ -21,6 +21,7 @@ import Image from 'next/image';
 import { generateUsername } from '@/ai/flows/generate-username-flow';
 import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 import { useCollection } from '@/firebase';
+import { Switch } from '@/components/ui/switch';
 
 const XP_PER_LEVEL = 1000; // 1000 XP to level up
 
@@ -95,6 +96,10 @@ export default function AccountPage() {
     const [difficulty, setDifficulty] = useState('easy');
     const [gameLevels, setGameLevels] = useState<GameLevel[]>(defaultGameLevels);
     
+    // Audio settings
+    const [isBgmMuted, setIsBgmMuted] = useState(false);
+    const [areSfxMuted, setAreSfxMuted] = useState(false);
+    
     // Avatar state
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -129,7 +134,22 @@ export default function AccountPage() {
             setGameMode(userProfile.gameMode || 'classic');
             setDifficulty(userProfile.difficulty || 'easy');
         }
+        // Load audio settings from localStorage
+        const bgm = localStorage.getItem('bhagkp-bgm-muted') === 'true';
+        const sfx = localStorage.getItem('bhagkp-sfx-muted') === 'true';
+        setIsBgmMuted(bgm);
+        setAreSfxMuted(sfx);
     }, [userProfile]);
+
+    const handleBgmToggle = (checked: boolean) => {
+        setIsBgmMuted(checked);
+        localStorage.setItem('bhagkp-bgm-muted', String(checked));
+    };
+
+    const handleSfxToggle = (checked: boolean) => {
+        setAreSfxMuted(checked);
+        localStorage.setItem('bhagkp-sfx-muted', String(checked));
+    };
     
     const handleGenerateUsername = async () => {
         if (!firestore) return;
@@ -378,6 +398,17 @@ export default function AccountPage() {
                                         </Select>
                                     </div>
                                 </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="bgm-mute" checked={isBgmMuted} onCheckedChange={handleBgmToggle} />
+                                        <Label htmlFor="bgm-mute">Mute Background Music</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="sfx-mute" checked={areSfxMuted} onCheckedChange={handleSfxToggle} />
+                                        <Label htmlFor="sfx-mute">Mute Sound Effects</Label>
+                                    </div>
+                                </div>
 
                                 <Button type="submit" disabled={isUpdating} className="w-full">
                                     {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -396,4 +427,5 @@ export default function AccountPage() {
         </div>
     );
 }
+
     
