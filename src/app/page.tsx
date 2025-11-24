@@ -308,27 +308,27 @@ export default function GamePage() {
         }
     }, [levelsLoading, assetsLoading]);
 
-    const saveScoreToLeaderboard = useCallback(() => {
-        if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || score === 0) return;
+    const saveScoreToLeaderboard = useCallback((currentScore: number) => {
+        if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || currentScore === 0) return;
 
         const leaderboardCollection = collection(firestore, 'leaderboard');
         const scoreData = {
             userId: user.uid,
             displayName: userProfile.displayName,
-            score: score,
+            score: currentScore,
             createdAt: serverTimestamp(),
             difficulty: currentLevel.name,
         };
         addDocumentNonBlocking(leaderboardCollection, scoreData);
-    }, [firestore, user, userProfile, score, currentLevel.name, gameMode]);
+    }, [firestore, user, userProfile, currentLevel.name, gameMode]);
 
-    const logGameEvent = useCallback(() => {
+    const logGameEvent = useCallback((currentScore: number) => {
         if (!firestore || !user) return;
         
         const isMobile = window.innerWidth < 768;
         const eventData = {
             userId: user.uid,
-            score: score,
+            score: currentScore,
             difficulty: currentLevel.name,
             timestamp: serverTimestamp(),
             deviceType: isMobile ? 'mobile' : 'desktop',
@@ -337,29 +337,7 @@ export default function GamePage() {
         const eventsCollection = collection(firestore, 'game_events');
         addDocumentNonBlocking(eventsCollection, eventData);
 
-    }, [firestore, user, score, currentLevel]);
-
-    const endGame = useCallback(() => {
-        if (gameState === 'over') return;
-        setGameState('over');
-        audioRef.current?.pause();
-        collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
-        if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
-        setLeaderboardPage(0);
-
-        if (gameMode !== 'zen') {
-             if (score > highScore) {
-                setHighScore(score);
-                if (user && !user.isAnonymous && firestore && userProfileRef) {
-                    updateDocumentNonBlocking(userProfileRef, { highScore: score });
-                } else if (typeof window !== 'undefined') {
-                    localStorage.setItem("BhagKpBhag_high", score.toString());
-                }
-            }
-            saveScoreToLeaderboard();
-            logGameEvent();
-        }
-    }, [score, highScore, gameMode, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, gameState]);
+    }, [firestore, user, currentLevel]);
     
     const createJumpParticles = useCallback(() => {
         for (let i = 0; i < 15; i++) {
@@ -394,15 +372,15 @@ export default function GamePage() {
             timeAttackIntervalRef.current = setInterval(() => {
                 setTimeLeft(prev => {
                     if (prev <= 1) {
-                        clearInterval(timeAttackIntervalRef.current);
-                        endGame();
+                        clearInterval(timeAttackIntervalRef.current!);
+                        setGameState('over'); // Let gameLoop handle the final actions
                         return 0;
                     }
                     return prev - 1;
                 });
             }, 1000);
         }
-    }, [currentLevel, imagesLoaded, gameMode, resetGame, endGame]);
+    }, [currentLevel, imagesLoaded, gameMode, resetGame]);
 
     const jump = useCallback(() => {
         if (!currentLevel) return;
@@ -440,6 +418,8 @@ export default function GamePage() {
         const ctx = canvas?.getContext('2d');
         if (!canvas || !ctx || !bgImgRef.current || !playerImgRef.current || pipeImgsRef.current.length === 0 || !currentLevel) return;
         
+        let shouldEndGame = false;
+
         const dpr = window.devicePixelRatio || 1;
         const cw = canvas.width / dpr;
         const ch = canvas.height / dpr;
@@ -450,18 +430,16 @@ export default function GamePage() {
             if (insaneLevel) L = insaneLevel;
         }
 
-        // Handle power-up effects
         if (slowMo.active) {
             L.speed *= 0.5;
             L.spawnRate *= 1.5;
         }
 
-        // Wind Effect
         windRef.current.timer--;
         if (windRef.current.timer <= 0) {
             windRef.current.direction *= -1;
-            windRef.current.strength = Math.random() * 0.15 + 0.05; // Random strength
-            windRef.current.timer = Math.random() * 300 + 100; // Random duration
+            windRef.current.strength = Math.random() * 0.15 + 0.05;
+            windRef.current.timer = Math.random() * 300 + 100;
         }
         playerRef.current.x += windRef.current.strength * windRef.current.direction * (slowMo.active ? 0.5 : 1);
         playerRef.current.x = Math.max(0, Math.min(playerRef.current.x, cw - playerRef.current.w));
@@ -476,7 +454,7 @@ export default function GamePage() {
                 playerRef.current.y = Math.max(0, Math.min(playerRef.current.y, ch - playerRef.current.h));
                 playerRef.current.vel = 0;
             } else {
-                endGame();
+                shouldEndGame = true;
             }
         }
 
@@ -488,9 +466,8 @@ export default function GamePage() {
             pipesRef.current.forEach(p => {
                 p.x -= p.speed;
 
-                // Oscillating pipes
                 if (p.oscillate) {
-                    p.yOffset += p.direction * 0.5; // Oscillation speed
+                    p.yOffset += p.direction * 0.5;
                     if (p.yOffset > 50 || p.yOffset < -50) {
                         p.direction *= -1;
                     }
@@ -504,10 +481,9 @@ export default function GamePage() {
                 ) {
                      if (hasShield) {
                         setHasShield(false);
-                        // Effectively removes the pipe from collision checks
                         p.x = -p.w; 
                     } else {
-                        endGame();
+                        shouldEndGame = true;
                     }
                 }
                 if (!p.passed && p.x + p.w < playerRef.current.x) {
@@ -534,7 +510,6 @@ export default function GamePage() {
             }
         });
 
-        // Handle particles
         particlesRef.current.forEach((p, i) => {
             p.y += p.speedY;
             p.x += p.speedX;
@@ -544,7 +519,6 @@ export default function GamePage() {
             }
         });
 
-        // Handle floating texts
         floatingTextsRef.current.forEach((ft, i) => {
             ft.y += ft.vy;
             ft.alpha -= 0.03;
@@ -560,8 +534,7 @@ export default function GamePage() {
 
         frameRef.current++;
         if (frameRef.current % Math.round(L.spawnRate) === 0) {
-             // Random gap size
-            const gapVariation = (Math.random() - 0.5) * 50; // Varies gap by up to +/- 25px
+            const gapVariation = (Math.random() - 0.5) * 50;
             const gap = L.gap + gapVariation;
             
             const minTop = 90;
@@ -570,8 +543,7 @@ export default function GamePage() {
             const pipeW = Math.min(140, Math.max(60, cw * 0.12));
             const randomPipeImg = pipeImgsRef.current[Math.floor(Math.random() * pipeImgsRef.current.length)];
 
-            // Decide if pipe oscillates
-            const willOscillate = Math.random() < 0.25; // 25% chance of being a moving pipe
+            const willOscillate = Math.random() < 0.25;
 
             pipesRef.current.push({
                 x: cw + 30,
@@ -587,19 +559,18 @@ export default function GamePage() {
                 gap: gap,
             });
 
-            // Spawn collectibles between pipes
             const spawnChance = Math.random();
-            if (spawnChance < 0.5) { // 50% chance to spawn something
+            if (spawnChance < 0.5) {
                  const collectibleY = topHeight + gap / 2;
                  const collectibleSize = 30;
                  const collectibleTypes = ['coin', 'shield', 'slowMo', 'doubleScore'];
                  const typeChance = Math.random();
                  let collectibleType: Collectible['type'];
 
-                if (typeChance < 0.7) collectibleType = 'coin'; // 70% chance for a coin
-                else if (typeChance < 0.85) collectibleType = 'shield'; // 15% for shield
-                else if (typeChance < 0.95) collectibleType = 'slowMo'; // 10% for slow-mo
-                else collectibleType = 'doubleScore'; // 5% for double score
+                if (typeChance < 0.7) collectibleType = 'coin';
+                else if (typeChance < 0.85) collectibleType = 'shield';
+                else if (typeChance < 0.95) collectibleType = 'slowMo';
+                else collectibleType = 'doubleScore';
 
                 const collectibleImg = collectibleImgsRef.current[collectibleType];
                 if(collectibleImg) {
@@ -635,18 +606,16 @@ export default function GamePage() {
              ctx.drawImage(c.img, c.x, c.y, c.w, c.h);
         });
 
-        // Draw particles
         particlesRef.current.forEach(p => {
             ctx.save();
             ctx.globalAlpha = p.alpha;
-            ctx.fillStyle = 'rgba(255, 223, 186, 0.8)'; // Light orange/gold color
+            ctx.fillStyle = 'rgba(255, 223, 186, 0.8)';
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
         });
 
-        // Draw floating texts
         floatingTextsRef.current.forEach(ft => {
             ctx.save();
             ctx.globalAlpha = ft.alpha;
@@ -661,7 +630,7 @@ export default function GamePage() {
 
         ctx.save();
         ctx.translate(playerRef.current.x + playerRef.current.w / 2, playerRef.current.y + playerRef.current.h / 2);
-        const rotation = Math.atan(playerRef.current.vel / 15); // Enhanced rotation
+        const rotation = Math.atan(playerRef.current.vel / 15);
         ctx.rotate(rotation);
         ctx.drawImage(playerImgRef.current!, -playerRef.current.w / 2, -playerRef.current.h / 2, playerRef.current.w, playerRef.current.h);
         ctx.restore();
@@ -684,13 +653,38 @@ export default function GamePage() {
             ctx.restore();
         }
 
+        if (shouldEndGame) {
+             setGameState('over');
+        } else {
+             gameLoopRef.current = requestAnimationFrame(gameLoop);
+        }
 
-        gameLoopRef.current = requestAnimationFrame(gameLoop);
-    }, [currentLevel, endGame, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, score, highScore, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, gameState]);
 
     useEffect(() => {
         if (gameState === 'playing') {
             gameLoopRef.current = requestAnimationFrame(gameLoop);
+        } else if (gameState === 'over') {
+             if (gameLoopRef.current) {
+                cancelAnimationFrame(gameLoopRef.current);
+            }
+            audioRef.current?.pause();
+            collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+            if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
+            setLeaderboardPage(0);
+
+            if (gameMode !== 'zen') {
+                 if (score > highScore) {
+                    setHighScore(score);
+                    if (user && !user.isAnonymous && firestore && userProfileRef) {
+                        updateDocumentNonBlocking(userProfileRef, { highScore: score });
+                    } else if (typeof window !== 'undefined') {
+                        localStorage.setItem("BhagKpBhag_high", score.toString());
+                    }
+                }
+                saveScoreToLeaderboard(score);
+                logGameEvent(score);
+            }
         }
         return () => {
             if (gameLoopRef.current) {
@@ -700,7 +694,7 @@ export default function GamePage() {
                 clearInterval(timeAttackIntervalRef.current);
             }
         };
-    }, [gameState, gameLoop]);
+    }, [gameState, gameLoop, score, highScore, gameMode, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef]);
 
     useEffect(() => {
         const handleInput = (e: Event) => {
@@ -920,5 +914,3 @@ export default function GamePage() {
         </main>
     );
 }
-
-    
