@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Link from 'next/link';
 import { ShieldCheck } from 'lucide-react';
+import { generateCommentary } from '@/ai/flows/generate-commentary-flow';
 
 interface GameAsset {
     name: string;
@@ -65,6 +66,14 @@ interface LeaderboardEntry {
 }
 
 const XP_PER_LEVEL = 1000;
+
+const commentaryPhrases = [
+    "फेरी प्रयास गर्नुहोस्!", // Try again!
+    "राम्रो प्रयास!", // Good effort!
+    "तपाईं झन्डै पुग्नुभयो!", // You were so close!
+    "धेरै राम्रो खेल!", // Very good game!
+    "हार नमान्नुहोस्!", // Don't give up!
+];
 
 export default function GamePage() {
     const { user } = useUser();
@@ -122,6 +131,7 @@ export default function GamePage() {
     const audioRef = useRef<HTMLAudioElement>(null);
     const jumpAudioRef = useRef<HTMLAudioElement>(null);
     const collisionAudioRef = useRef<HTMLAudioElement>(null);
+    const commentaryAudioRef = useRef<HTMLAudioElement>(null);
 
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
@@ -350,6 +360,21 @@ export default function GamePage() {
             setGameState('loading');
         }
     }, [levelsLoading, assetsLoading]);
+
+    const playCommentary = useCallback(async () => {
+        if (isMuted) return;
+        try {
+            const randomPhrase = commentaryPhrases[Math.floor(Math.random() * commentaryPhrases.length)];
+            const { audioDataUri } = await generateCommentary({ phrase: randomPhrase });
+
+            if (commentaryAudioRef.current) {
+                commentaryAudioRef.current.src = audioDataUri;
+                commentaryAudioRef.current.play().catch(e => console.error("Commentary audio play failed:", e));
+            }
+        } catch (error) {
+            console.error('Failed to generate or play commentary:', error);
+        }
+    }, [isMuted]);
 
     const saveScoreToLeaderboard = useCallback((currentScore: number) => {
         if (!firestore || !user || user.isAnonymous || !userProfile?.displayName || gameMode === 'zen' || currentScore === 0) return;
@@ -862,9 +887,10 @@ export default function GamePage() {
             const finalCoins = coinsRef.current;
             const currentHighScore = highScoreRef.current;
             
+            // This is the critical change: update state BEFORE setting game state to 'over'
             setScore(finalScore);
             setCoins(finalCoins);
-
+            
             if (gameMode !== 'zen') {
                 const lastGameSummary = {
                     score: finalScore,
@@ -884,6 +910,8 @@ export default function GamePage() {
                 saveScoreToLeaderboard(finalScore);
                 logGameEvent(finalScore);
             }
+
+            playCommentary();
             
             setLeaderboardPage(0);
             setGameState('over');
@@ -892,7 +920,7 @@ export default function GamePage() {
              gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
 
-    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather]);
+    }, [currentLevel, slowMo, doubleScore, hasShield, handlePowerUpTimers, gameMode, gameLevels, createFloatingText, saveScoreToLeaderboard, logGameEvent, user, firestore, userProfileRef, timeLeft, weather, playCommentary]);
 
     useEffect(() => {
         if (gameState === 'playing') {
@@ -953,6 +981,9 @@ export default function GamePage() {
         if(collisionAudioRef.current){
             collisionAudioRef.current.muted = isMuted;
         }
+        if (commentaryAudioRef.current) {
+            commentaryAudioRef.current.muted = isMuted;
+        }
     }, [isMuted]);
 
     const handleRestart = () => {
@@ -991,6 +1022,7 @@ export default function GamePage() {
         <main className="relative w-screen h-screen overflow-hidden bg-background font-body select-none">
             <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
             
+            <audio ref={commentaryAudioRef} playsInline />
             {gameAssets?.bgMusic?.url && (
                 <audio ref={audioRef} src={gameAssets.bgMusic.url} loop playsInline />
             )}
@@ -1089,7 +1121,7 @@ export default function GamePage() {
                                     </>
                                 )}
                                 <div className="space-y-4 mt-6">
-                                    <Button size="lg" onClick={handleRestart} className="w-full transition-transform duration-200 hover:scale-105">
+                                    <Button size="lg" onClick={handleRestart} className="w-full transition-transform duration-200 hover:scale-105 animate-pulse">
                                         Restart
                                     </Button>
                                     {user && !user.isAnonymous && (
@@ -1174,5 +1206,3 @@ export default function GamePage() {
         </main>
     );
 }
-
-    
