@@ -20,23 +20,30 @@ interface GameAsset {
     url: string;
 }
 
+interface PipeAsset {
+    name: string;
+    url: string;
+    collisionSoundUrl?: string;
+}
+
 interface GameAssets {
     bg?: GameAsset;
     player?: GameAsset;
-    pipes?: GameAsset[];
+    pipes?: PipeAsset[];
     bgMusic?: GameAsset;
     coin?: GameAsset;
     shield?: GameAsset;
     slowMo?: GameAsset;
     doubleScore?: GameAsset;
     jumpSound?: GameAsset;
-    collisionSound?: GameAsset;
+    collisionSound?: GameAsset; // Default collision sound
     coinSound?: GameAsset;
     shieldSound?: GameAsset;
     slowMoSound?: GameAsset;
     doubleScoreSound?: GameAsset;
     pipePassSound?: GameAsset;
 }
+
 
 type GameMode = 'classic' | 'timeAttack' | 'zen' | 'insane';
 type WeatherType = 'clear' | 'rain' | 'fog';
@@ -139,14 +146,14 @@ export default function GamePage() {
 
     
     const playerRef = useRef<Player>({ x: 120, y: 200, w: 60, h: 45, vel: 0 });
-    const pipesRef = useRef<(Pipe & { img: HTMLImageElement })[]>([]);
+    const pipesRef = useRef<(Pipe & { img: HTMLImageElement, collisionSound?: HTMLAudioElement })[]>([]);
     const collectiblesRef = useRef<(Collectible & { img: HTMLImageElement })[]>([]);
     const frameRef = useRef(0);
     const bgXRef = useRef(0);
     const collisionOccurredRef = useRef(false);
 
     const bgImgRef = useRef<HTMLImageElement>();
-    const pipeImgsRef = useRef<HTMLImageElement[]>([]);
+    const pipeImgsRef = useRef<(HTMLImageElement & { collisionSound?: HTMLAudioElement })[]>([]);
     const playerImgRef = useRef<HTMLImageElement>();
     const collectibleImgsRef = useRef<{[key: string]: HTMLImageElement}>({});
 
@@ -247,9 +254,9 @@ export default function GamePage() {
 
         const bgUrl = gameAssets?.bg?.url || defaultAssets.bg;
         const playerUrl = gameAssets?.player?.url || defaultAssets.player;
-        const pipeUrls = gameAssets?.pipes && gameAssets.pipes.length > 0
-            ? gameAssets.pipes.map(p => p.url)
-            : [defaultAssets.pipe].filter((url): url is string => !!url);
+        const pipeAssets = gameAssets?.pipes && gameAssets.pipes.length > 0
+            ? gameAssets.pipes
+            : [{ name: 'default-pipe', url: defaultAssets.pipe as string, collisionSoundUrl: undefined }];
 
         const collectibleAssetUrls = {
             coin: gameAssets?.coin?.url || defaultAssets.coin,
@@ -261,29 +268,39 @@ export default function GamePage() {
         let isMounted = true;
         setImagesLoaded(false);
         
-        const loadImages = async () => {
+        const loadAssets = async () => {
             try {
-                const imagePromises: Promise<any>[] = [];
+                const assetPromises: Promise<any>[] = [];
 
                 const addImagePromise = (url: string | undefined, ref: React.MutableRefObject<HTMLImageElement | undefined>) => {
                     if (url) {
                         const img = new Image();
                         img.src = url;
                         ref.current = img;
-                        imagePromises.push(img.decode());
+                        assetPromises.push(img.decode());
                     }
                 };
+                
+                 const addPipeAssetsPromises = (assets: PipeAsset[], ref: React.MutableRefObject<(HTMLImageElement & { collisionSound?: HTMLAudioElement })[]>) => {
+                    const pipeAssetObjects = assets.map(asset => {
+                        const img = new Image() as (HTMLImageElement & { collisionSound?: HTMLAudioElement });
+                        img.src = asset.url;
+                        assetPromises.push(img.decode());
 
-                 const addMultiImagePromise = (urls: string[], ref: React.MutableRefObject<HTMLImageElement[]>) => {
-                    const imgs = urls.map(url => {
-                        const img = new Image();
-                        img.src = url;
+                        if (asset.collisionSoundUrl) {
+                            const audio = new Audio(asset.collisionSoundUrl);
+                            audio.preload = 'auto';
+                            assetPromises.push(new Promise((resolve, reject) => {
+                                audio.addEventListener('canplaythrough', () => resolve(void 0), { once: true });
+                                audio.addEventListener('error', reject, { once: true });
+                            }));
+                            img.collisionSound = audio;
+                        }
                         return img;
                     });
-                    ref.current = imgs;
-                    imgs.forEach(img => imagePromises.push(img.decode()));
+                    ref.current = pipeAssetObjects;
                 };
-                
+
                 const addCollectibleImagePromises = (urls: {[key: string]: string | undefined}, ref: React.MutableRefObject<{[key: string]: HTMLImageElement}>) => {
                     for (const key in urls) {
                         const url = urls[key];
@@ -291,26 +308,26 @@ export default function GamePage() {
                             const img = new Image();
                             img.src = url;
                             ref.current[key] = img;
-                            imagePromises.push(img.decode());
+                            assetPromises.push(img.decode());
                         }
                     }
                 }
 
                 addImagePromise(bgUrl, bgImgRef);
                 addImagePromise(playerUrl, playerImgRef);
-                addMultiImagePromise(pipeUrls, pipeImgsRef);
+                addPipeAssetsPromises(pipeAssets, pipeImgsRef);
                 addCollectibleImagePromises(collectibleAssetUrls, collectibleImgsRef);
 
-                await Promise.all(imagePromises);
+                await Promise.all(assetPromises);
 
                 if (isMounted) {
                     setImagesLoaded(true);
                 }
             } catch (error) {
-                console.error("Failed to load game images", error);
+                console.error("Failed to load game assets", error);
             }
         };
-        loadImages();
+        loadAssets();
 
         return () => {
             isMounted = false;
@@ -611,6 +628,8 @@ export default function GamePage() {
         playerRef.current.y += playerRef.current.vel;
         
         let shouldEndGame = false;
+        let pipeCollisionSoundToPlay: HTMLAudioElement | undefined = undefined;
+
         if ((playerRef.current.y < 0 || playerRef.current.y + playerRef.current.h > ch) && gameMode !== 'zen') {
             if (hasShield) {
                 setHasShield(false);
@@ -650,6 +669,9 @@ export default function GamePage() {
                     } else {
                         shouldEndGame = true;
                         collisionOccurredRef.current = true;
+                        if (p.collisionSound) {
+                            pipeCollisionSoundToPlay = p.collisionSound;
+                        }
                     }
                 }
                 if (!p.passed && p.x + p.w < playerRef.current.x) {
@@ -717,7 +739,7 @@ export default function GamePage() {
             const maxTop = ch - gap - 120;
             const topHeight = Math.floor(minTop + Math.random() * (maxTop - minTop));
             const pipeW = Math.min(140, Math.max(60, cw * 0.12));
-            const randomPipeImg = pipeImgsRef.current[Math.floor(Math.random() * pipeImgsRef.current.length)];
+            const randomPipeAsset = pipeImgsRef.current[Math.floor(Math.random() * pipeImgsRef.current.length)];
 
             const willOscillate = Math.random() < 0.25;
 
@@ -728,7 +750,8 @@ export default function GamePage() {
                 bottom: ch - (topHeight + gap),
                 speed: L.speed,
                 passed: false,
-                img: randomPipeImg,
+                img: randomPipeAsset,
+                collisionSound: randomPipeAsset.collisionSound,
                 oscillate: willOscillate,
                 yOffset: 0,
                 direction: 1,
@@ -868,8 +891,12 @@ export default function GamePage() {
                 cancelAnimationFrame(gameLoopRef.current);
             }
             audioRef.current?.pause();
-            if(shouldEndGame) {
-                if (!areSfxMuted) collisionAudioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+            if(shouldEndGame && !areSfxMuted) {
+                if (pipeCollisionSoundToPlay) {
+                    pipeCollisionSoundToPlay.play().catch(e => console.error("Pipe collision sound failed:", e));
+                } else {
+                    collisionAudioRef.current?.play().catch(e => console.error("Default collision sound failed:", e));
+                }
             }
             if (timeAttackIntervalRef.current) clearInterval(timeAttackIntervalRef.current);
 
@@ -971,6 +998,13 @@ export default function GamePage() {
         if(slowMoAudioRef.current){ slowMoAudioRef.current.muted = areSfxMuted; }
         if(doubleScoreAudioRef.current){ doubleScoreAudioRef.current.muted = areSfxMuted; }
         if(pipePassAudioRef.current){ pipePassAudioRef.current.muted = areSfxMuted; }
+        
+        pipeImgsRef.current.forEach(pipeAsset => {
+            if (pipeAsset.collisionSound) {
+                pipeAsset.collisionSound.muted = areSfxMuted;
+            }
+        });
+
     }, [isBgmMuted, areSfxMuted]);
 
     const handleRestart = () => {
@@ -1189,5 +1223,3 @@ export default function GamePage() {
         </main>
     );
 }
-
-    

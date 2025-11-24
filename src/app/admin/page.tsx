@@ -27,10 +27,17 @@ interface GameAsset {
     url: string;
 }
 
+interface PipeAsset {
+    name: string;
+    url: string;
+    collisionSoundUrl?: string;
+}
+
+
 interface GameAssets {
     bg?: GameAsset;
     player?: GameAsset;
-    pipes?: GameAsset[];
+    pipes?: PipeAsset[];
     bgMusic?: GameAsset;
     coin?: GameAsset;
     shield?: GameAsset;
@@ -143,7 +150,7 @@ const AdminPageContent: React.FC = () => {
         setFormData(prev => ({ ...prev, [name]: value[0] }));
     };
 
-    const handleFileChange = (assetId: keyof GameAssets) => async (e: ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (assetId: keyof GameAssets, pipeIndex?: number) => async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !firestore || !gameAssetsRef) return;
         
@@ -154,14 +161,15 @@ const AdminPageContent: React.FC = () => {
             return;
         }
 
-        setUploadingStates(prev => ({ ...prev, [assetId]: true }));
+        const uploadKey = pipeIndex !== undefined ? `pipe_sound_${pipeIndex}` : assetId;
+        setUploadingStates(prev => ({ ...prev, [uploadKey]: true }));
         toast({ title: `Uploading ${assetId}...`, description: 'Please wait.' });
 
         const cloudinaryFormData = new FormData();
         cloudinaryFormData.append('file', file);
         cloudinaryFormData.append('upload_preset', 'ml_default');
         
-        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound', 'coinSound', 'shieldSound', 'slowMoSound', 'doubleScoreSound', 'pipePassSound'].includes(assetId as string) ? 'video' : 'image';
+        const resourceType = ['bgMusic', 'jumpSound', 'collisionSound', 'coinSound', 'shieldSound', 'slowMoSound', 'doubleScoreSound', 'pipePassSound', 'pipeCollisionSound'].includes(assetId as string) || (assetId === 'pipes' && file.type.startsWith('audio')) ? 'video' : 'image';
 
         try {
             const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
@@ -176,38 +184,47 @@ const AdminPageContent: React.FC = () => {
                  throw new Error(errorMessage);
             }
             
-            const newAsset = { name: file.name, url: cloudinaryData.secure_url };
-            
             const docSnap = await getDoc(gameAssetsRef);
-            if (docSnap.exists()) {
-                if (assetId === 'pipes') {
-                    updateDocumentNonBlocking(gameAssetsRef, { pipes: arrayUnion(newAsset) });
-                } else {
-                    updateDocumentNonBlocking(gameAssetsRef, { [assetId]: newAsset });
+            const currentAssets = docSnap.exists() ? docSnap.data() as GameAssets : {};
+
+            if (assetId === 'pipes') {
+                if (resourceType === 'image') { // Adding a new pipe image
+                    const newPipeAsset: PipeAsset = { name: file.name, url: cloudinaryData.secure_url };
+                    updateDocumentNonBlocking(gameAssetsRef, { pipes: arrayUnion(newPipeAsset) });
+                } else { // Adding/updating a collision sound for an existing pipe
+                    if (pipeIndex !== undefined && currentAssets.pipes) {
+                        const updatedPipes = [...currentAssets.pipes];
+                        updatedPipes[pipeIndex].collisionSoundUrl = cloudinaryData.secure_url;
+                        updateDocumentNonBlocking(gameAssetsRef, { pipes: updatedPipes });
+                    }
                 }
             } else {
-                const initialData = assetId === 'pipes' ? { pipes: [newAsset] } : { [assetId]: newAsset };
-                setDocumentNonBlocking(gameAssetsRef, initialData, {});
+                const newAsset = { name: file.name, url: cloudinaryData.secure_url };
+                if (docSnap.exists()) {
+                    updateDocumentNonBlocking(gameAssetsRef, { [assetId]: newAsset });
+                } else {
+                    setDocumentNonBlocking(gameAssetsRef, { [assetId]: newAsset }, {});
+                }
             }
 
-            toast({ title: 'Success', description: `'${file.name}' uploaded for ${assetId}.` });
+            toast({ title: 'Success', description: `'${file.name}' uploaded.` });
 
         } catch (error: any) {
             console.error("Cloudinary upload error:", error);
-            toast({ variant: 'destructive', title: 'Upload Error', description: error.message || `Could not upload ${assetId}.` });
+            toast({ variant: 'destructive', title: 'Upload Error', description: error.message || `Could not upload asset.` });
         } finally {
-            setUploadingStates(prev => ({ ...prev, [assetId]: false }));
+            setUploadingStates(prev => ({ ...prev, [uploadKey]: false }));
             const input = e.target as HTMLInputElement;
             if (input) input.value = '';
         }
     };
     
-    const handleDeletePipeImage = (pipeAsset: GameAsset) => {
-        if (!firestore || !gameAssetsRef) return;
-        updateDocumentNonBlocking(gameAssetsRef, {
-            pipes: arrayRemove(pipeAsset)
-        });
-        toast({ title: 'Success', description: `Pipe image '${pipeAsset.name}' deleted.` });
+    const handleDeletePipeAsset = (pipeIndex: number) => {
+        if (!firestore || !gameAssetsRef || !gameAssets?.pipes) return;
+        const updatedPipes = [...gameAssets.pipes];
+        const pipeToDelete = updatedPipes.splice(pipeIndex, 1);
+        updateDocumentNonBlocking(gameAssetsRef, { pipes: updatedPipes });
+        toast({ title: 'Success', description: `Pipe asset '${pipeToDelete[0].name}' deleted.` });
     };
 
     const handleDeleteAsset = async (assetId: keyof GameAssets) => {
@@ -363,62 +380,80 @@ const AdminPageContent: React.FC = () => {
             <Card className="mb-8">
                 <CardHeader>
                     <CardTitle>Game Visual Assets</CardTitle>
-                    <CardDescription>Manage the core visual elements of the game, including the background, player, and pipe images.</CardDescription>
+                    <CardDescription>Manage the core visual elements of the game, including the background and player images.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="grid md:grid-cols-3 gap-8">
+                    <div className="grid md:grid-cols-2 gap-8">
                         <AssetUploadCard assetId="bg" label="Background Image" isUploading={!!uploadingStates['bg']} />
                         <AssetUploadCard assetId="player" label="Player Image" isUploading={!!uploadingStates['player']} />
-
-                        {/* Pipe Images */}
-                        <div className="space-y-4">
-                             <Label htmlFor="pipesFile" className="text-lg">Pipe Images</Label>
-                             <Input id="pipesFile" type="file" accept="image/*" onChange={handleFileChange('pipes')} disabled={uploadingStates['pipes']}/>
-                            {uploadingStates['pipes'] && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading new pipe...</div>}
-
-                            <div className="space-y-4">
-                                {gameAssets?.pipes && gameAssets.pipes.length > 0 ? (
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {gameAssets.pipes.map((pipe, index) => (
-                                             <div key={index} className="relative group">
-                                                <div className="relative w-full h-24">
-                                                    <Image src={pipe.url} alt={pipe.name} fill className="rounded-md border object-cover" />
-                                                </div>
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button
-                                                            variant="destructive"
-                                                            size="icon"
-                                                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Trash2 size={14} />
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the pipe image '{pipe.name}'.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeletePipeImage(pipe)}>Delete</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                             </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="w-full h-24 flex items-center justify-center bg-muted rounded-md">
-                                        <p className="text-sm text-muted-foreground">No pipe images.</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
                     </div>
                 </CardContent>
             </Card>
+
+            <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>Pipe Assets</CardTitle>
+                    <CardDescription>Manage pipe images and their unique collision sounds.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                     <div className="space-y-2">
+                        <Label htmlFor="pipesFile">Add New Pipe Image</Label>
+                        <Input id="pipesFile" type="file" accept="image/*" onChange={handleFileChange('pipes')} disabled={uploadingStates['pipes']}/>
+                        {uploadingStates['pipes'] && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading new pipe...</div>}
+                    </div>
+
+                    <div className="space-y-4">
+                        {gameAssets?.pipes && gameAssets.pipes.length > 0 ? (
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {gameAssets.pipes.map((pipe, index) => (
+                                     <Card key={index} className="flex flex-col">
+                                        <CardHeader className="flex-row items-center justify-between">
+                                            <CardTitle className="text-base truncate">{pipe.name}</CardTitle>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
+                                                        <Trash2 size={16} />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete the pipe asset '{pipe.name}'.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeletePipeAsset(index)}>Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4 flex-grow">
+                                            <div className="relative w-full h-24">
+                                                <Image src={pipe.url} alt={pipe.name} fill className="rounded-md border object-cover" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm">Collision Sound</Label>
+                                                {pipe.collisionSoundUrl ? (
+                                                    <audio src={pipe.collisionSoundUrl} controls className="w-full h-10" />
+                                                ) : <p className="text-xs text-muted-foreground">No sound.</p>}
+                                                <Input id={`pipe-sound-${index}`} type="file" accept="audio/*" onChange={handleFileChange('pipes', index)} disabled={uploadingStates[`pipe_sound_${index}`]} />
+                                                {uploadingStates[`pipe_sound_${index}`] && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</div>}
+                                            </div>
+                                        </CardContent>
+                                     </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="w-full py-10 flex items-center justify-center bg-muted rounded-md">
+                                <p className="text-sm text-muted-foreground">No pipe assets uploaded yet.</p>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
 
             <Card className="mb-8">
                 <CardHeader>
@@ -444,7 +479,7 @@ const AdminPageContent: React.FC = () => {
                      <div className="grid md:grid-cols-4 gap-8">
                        <AudioUploadCard assetId="bgMusic" label="Background Music" isUploading={!!uploadingStates['bgMusic']} />
                        <AudioUploadCard assetId="jumpSound" label="Jump Sound" isUploading={!!uploadingStates['jumpSound']} />
-                       <AudioUploadCard assetId="collisionSound" label="Collision Sound" isUploading={!!uploadingStates['collisionSound']} />
+                       <AudioUploadCard assetId="collisionSound" label="Default Collision" isUploading={!!uploadingStates['collisionSound']} />
                        <AudioUploadCard assetId="pipePassSound" label="Pipe Pass Sound" isUploading={!!uploadingStates['pipePassSound']} />
                     </div>
                 </CardContent>
@@ -568,5 +603,3 @@ const AdminPage = () => {
 }
 
 export default AdminPage;
-
-    
