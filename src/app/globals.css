@@ -72,6 +72,32 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  /* Time of Day Themes */
+  .theme-morning {
+    --background: 50 100% 85%; /* Bright Yellow */
+    --foreground: 45 50% 20%;
+    --primary: 45 100% 55%;
+    --primary-foreground: 45 100% 15%;
+    --card: 50 50% 90%;
+    --accent: 60 100% 50%;
+  }
+  .theme-evening {
+    --background: 270 50% 25%; /* Purple */
+    --foreground: 270 30% 95%;
+    --primary: 300 100% 70%; /* Neon Pink/Purple */
+    --primary-foreground: 300 100% 10%;
+    --card: 270 40% 35%;
+    --accent: 320 100% 65%;
+  }
+  .theme-night {
+    --background: 220 60% 10%; /* Dark Blue */
+    --foreground: 220 20% 90%;
+    --primary: 210 100% 60%; /* Bright Blue */
+    --primary-foreground: 210 100% 10%;
+    --card: 220 50% 20%;
+    --accent: 200 100% 55%;
+  }
 }
 
 @layer base {

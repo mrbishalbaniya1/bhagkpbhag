@@ -471,6 +471,30 @@ export default function GamePage() {
         frameRef.current++;
         playerRef.current.y = ch / 2.5 + Math.sin(frameRef.current / 40) * 15;
         ctx.drawImage(playerImgRef.current, playerRef.current.x, playerRef.current.y, playerRef.current.w, playerRef.current.h);
+        
+        // Retro animation text
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'hsl(var(--primary-foreground))';
+        ctx.shadowColor = 'hsl(var(--primary))';
+        ctx.shadowBlur = 10;
+        
+        ctx.font = 'bold 48px sans-serif';
+        ctx.fillText('नमस्ते', cw / 2, ch / 2 - 100);
+
+        ctx.font = '24px sans-serif';
+        const nepaliText = 'खेल सुरु गर्न SPACE थिच्नुहोस्!';
+        const yOffset = Math.sin(frameRef.current / 20) * 5;
+        ctx.fillText(nepaliText, cw / 2, ch / 2 - 50 + yOffset);
+        
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillStyle = 'hsl(var(--foreground))';
+        ctx.shadowColor = 'hsl(var(--background))';
+        ctx.shadowBlur = 5;
+        ctx.fillText('Press SPACE or Tap to Start', cw / 2, ch * 0.9);
+
+        ctx.restore();
+
 
         gameLoopRef.current = requestAnimationFrame(heroLoop);
     }, []);
@@ -799,6 +823,10 @@ export default function GamePage() {
             const finalScore = scoreRef.current;
             const finalCoins = coinsRef.current;
             const currentHighScore = highScoreRef.current;
+            
+            // This is the critical fix: update state BEFORE changing gameState
+            setScore(finalScore);
+            setCoins(finalCoins);
 
             if (gameMode !== 'zen') {
                 const lastGameSummary = {
@@ -820,9 +848,6 @@ export default function GamePage() {
                 logGameEvent(finalScore);
             }
             
-            // This is the critical fix: update state BEFORE changing gameState
-            setScore(finalScore);
-            setCoins(finalCoins);
             setLeaderboardPage(0);
             setGameState('over');
 
@@ -964,10 +989,7 @@ export default function GamePage() {
             )}
             
             {gameState === 'ready' && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/30 text-foreground text-center p-4 animate-in fade-in duration-500">
-                    <h1 className="text-6xl font-bold font-headline drop-shadow-xl mb-4 text-primary">BhagKpBhag</h1>
-                     <p className="text-xl font-semibold animate-pulse mb-8">Tap or Press Space to Start</p>
-
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-transparent text-foreground text-center p-4">
                      <Card className="max-w-md w-full bg-card/80 backdrop-blur-sm">
                         <CardHeader>
                             <CardTitle className="flex items-center justify-center gap-2">
