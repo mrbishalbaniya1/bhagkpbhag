@@ -13,6 +13,8 @@ import { Firestore, doc, setDoc, serverTimestamp, getDoc, collection, getDocs } 
 import type { useToast } from '@/hooks/use-toast';
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { generateUsername } from '@/ai/flows/generate-username-flow';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 interface SignUpOptions {
     firestore: Firestore;
@@ -48,7 +50,15 @@ export async function initiateEmailSignUp(authInstance: Auth, email: string, pas
       highScore: 0,
   };
   
-  await setDoc(userProfileRef, userProfileData);
+  setDoc(userProfileRef, userProfileData).catch(error => {
+    const permissionError = new FirestorePermissionError({
+      path: userProfileRef.path,
+      operation: 'create',
+      requestResourceData: userProfileData,
+    });
+    errorEmitter.emit('permission-error', permissionError);
+  });
+  
   return userCredential;
 }
 
@@ -79,7 +89,6 @@ export async function initiateEmailSignIn(
               description: 'Email/Password sign-in is not enabled for this app.',
           });
       } else {
-          console.error("Sign-in error:", error);
            toast({
               variant: 'destructive',
               title: 'An Error Occurred',
@@ -112,7 +121,14 @@ export async function initiateGoogleSignIn(
         createdAt: serverTimestamp(),
         highScore: 0,
       };
-      await setDoc(userProfileRef, userProfileData);
+      setDoc(userProfileRef, userProfileData).catch(error => {
+        const permissionError = new FirestorePermissionError({
+            path: userProfileRef.path,
+            operation: 'create',
+            requestResourceData: userProfileData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
     }
     toast({ title: 'Success!', description: 'You are now signed in with Google.' });
     router.push('/');
@@ -130,7 +146,6 @@ export async function initiateGoogleSignIn(
             description: 'Google Sign-In is not enabled for this app.',
         });
     } else {
-      console.error("Google sign-in error:", error);
       toast({
         variant: 'destructive',
         title: 'Google Sign-In Failed',
