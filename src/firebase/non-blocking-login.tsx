@@ -41,10 +41,9 @@ export async function initiateEmailSignUp(authInstance: Auth, email: string, pas
   const user = userCredential.user;
   const userProfileRef = doc(options.firestore, 'users', user.uid);
   
-  const uniqueUsername = await getUniqueUsername(options.firestore);
-
+  // Use email as the initial display name. User can change it later.
   const userProfileData = {
-      displayName: uniqueUsername,
+      displayName: user.email,
       email: user.email,
       createdAt: serverTimestamp(),
       highScore: 0,
@@ -114,9 +113,9 @@ export async function initiateGoogleSignIn(
     const docSnap = await getDoc(userProfileRef);
 
     if (!docSnap.exists()) {
-      const uniqueUsername = await getUniqueUsername(firestore);
+      // Use email as initial display name
       const userProfileData = {
-        displayName: uniqueUsername,
+        displayName: user.email,
         email: user.email,
         createdAt: serverTimestamp(),
         highScore: 0,

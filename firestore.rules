@@ -64,7 +64,7 @@ service cloud.firestore {
                     && request.resource.data.createdAt == request.time
                     && request.resource.data.highScore == 0;
                     
-      allow update: if isOwner(userId) && request.resource.data.highScore >= (resource.data.get('highScore', 0));
+      allow update: if isOwner(userId) && request.resource.data.highScore >= resource.data.get('highScore', 0);
       allow list, delete: if false;
 
 
