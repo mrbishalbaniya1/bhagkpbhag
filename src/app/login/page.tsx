@@ -75,7 +75,6 @@ export default function LoginPage() {
       });
       router.push('/');
     } catch (error: any) {
-        console.error('Anonymous sign-in error:', error);
         toast({
             variant: 'destructive',
             title: 'Guest Sign In Failed',
