@@ -1042,7 +1042,7 @@ export default function GamePage() {
             setVolume(pipeAsset.collisionSound || null, sfxVolume);
         });
 
-    }, [bgmVolume, sfxVolume, adminSettings]);
+    }, [bgmVolume, sfxVolume, adminSettings, gameState]);
 
     const handleRestart = () => {
         startGame();
