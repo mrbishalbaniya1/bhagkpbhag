@@ -85,7 +85,7 @@ interface LeaderboardEntry {
 const XP_PER_LEVEL = 1000;
 
 export default function GamePage() {
-    const { user } = useUser();
+    const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const auth = useAuth();
     const gameLevelsRef = useMemoFirebase(() => firestore ? collection(firestore, 'published_game_levels') : null, [firestore]);
@@ -94,7 +94,7 @@ export default function GamePage() {
     const gameAssetsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'game_assets') : null, [firestore]);
     const { data: gameAssets, isLoading: assetsLoading } = useDoc<GameAssets>(gameAssetsRef);
     
-    const adminSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'admin') : null, [firestore]);
+    const adminSettingsRef = useMemoFirebase(() => firestore && !isUserLoading ? doc(firestore, 'settings', 'admin') : null, [firestore, isUserLoading]);
     const { data: adminSettings, isLoading: settingsLoading } = useDoc<AdminSettings>(adminSettingsRef);
 
     
@@ -931,6 +931,11 @@ export default function GamePage() {
 
             const finalScore = scoreRef.current;
             const finalCoins = coinsRef.current;
+            
+            // Set state right before changing gameState
+            setScore(finalScore);
+            setCoins(finalCoins);
+            setLeaderboardPage(0);
 
             if (gameMode !== 'zen') {
                 if (userProfile) {
@@ -957,10 +962,6 @@ export default function GamePage() {
                 saveScoreToLeaderboard(finalScore);
             }
             
-            // Set state right before changing gameState
-            setScore(finalScore);
-            setCoins(finalCoins);
-            setLeaderboardPage(0);
             setGameState('over');
 
         } else {
