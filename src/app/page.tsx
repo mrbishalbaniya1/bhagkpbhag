@@ -172,8 +172,8 @@ export default function GamePage() {
 
     // Load audio settings from local storage
     useEffect(() => {
-        const bgmVol = localStorage.getItem('bhagkp-bgm-volume');
-        const sfxVol = localStorage.getItem('bhagkp-sfx-volume');
+        const bgmVol = localStorage.getItem('game-bgm-volume');
+        const sfxVol = localStorage.getItem('game-sfx-volume');
         setBgmVolume(bgmVol ? parseFloat(bgmVol) : 0.5);
         setSfxVolume(sfxVol ? parseFloat(sfxVol) : 0.5);
     }, []);
@@ -249,7 +249,7 @@ export default function GamePage() {
             const userDifficulty = gameLevels.find(l => l.id === userProfile.difficulty) || gameLevels[0];
             setCurrentLevel(userDifficulty);
         } else if (typeof window !== 'undefined') {
-            const storedHigh = localStorage.getItem("BhagKpBhag_high") || "0";
+            const storedHigh = localStorage.getItem("game_high") || "0";
             setHighScore(parseInt(storedHigh, 10));
         }
     }, [user, userProfile, gameLevels]);
@@ -942,7 +942,7 @@ export default function GamePage() {
                     if (user && !user.isAnonymous && firestore && userProfileRef) {
                         updateDocumentNonBlocking(userProfileRef, { highScore: finalScore });
                     } else if (typeof window !== 'undefined') {
-                        localStorage.setItem("BhagKpBhag_high", finalScore.toString());
+                        localStorage.setItem("game_high", finalScore.toString());
                     }
                 }
                 if (user && !user.isAnonymous && userProfileRef) {

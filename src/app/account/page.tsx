@@ -133,8 +133,8 @@ export default function AccountPage() {
             setDifficulty(userProfile.difficulty || 'easy');
         }
         // Load audio settings from localStorage
-        const bgmVol = localStorage.getItem('bhagkp-bgm-volume');
-        const sfxVol = localStorage.getItem('bhagkp-sfx-volume');
+        const bgmVol = localStorage.getItem('game-bgm-volume');
+        const sfxVol = localStorage.getItem('game-sfx-volume');
         setBgmVolume(bgmVol ? parseFloat(bgmVol) : 0.5);
         setSfxVolume(sfxVol ? parseFloat(sfxVol) : 0.5);
     }, [userProfile]);
@@ -142,13 +142,13 @@ export default function AccountPage() {
     const handleBgmVolumeChange = (value: number[]) => {
         const newVolume = value[0];
         setBgmVolume(newVolume);
-        localStorage.setItem('bhagkp-bgm-volume', String(newVolume));
+        localStorage.setItem('game-bgm-volume', String(newVolume));
     };
 
     const handleSfxVolumeChange = (value: number[]) => {
         const newVolume = value[0];
         setSfxVolume(newVolume);
-        localStorage.setItem('bhagkp-sfx-volume', String(newVolume));
+        localStorage.setItem('game-sfx-volume', String(newVolume));
     };
     
     const handleAvatarUpload = async () => {
