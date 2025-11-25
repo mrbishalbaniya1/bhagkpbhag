@@ -18,7 +18,6 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Image from 'next/image';
-import { generateAvatar } from '@/ai/flows/generate-avatar-flow';
 import { useCollection } from '@/firebase';
 import { Slider } from '@/components/ui/slider';
 
@@ -101,7 +100,6 @@ export default function AccountPage() {
     // Avatar state
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
-    const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
 
     useEffect(() => {
         if (!isUserLoading && (!user || user.isAnonymous)) {
@@ -187,33 +185,6 @@ export default function AccountPage() {
             setAvatarFile(null);
         }
     };
-    
-    const handleGenerateAvatar = async (style: 'Pixel' | 'Anime' | 'Cartoon') => {
-        if (!userProfile?.avatarUrl || !userProfileRef) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please upload a base image first.' });
-            return;
-        }
-        setIsGeneratingAvatar(true);
-        toast({ title: `Generating ${style} Avatar...`, description: 'This may take a moment.' });
-        
-        try {
-            // Need to fetch the image and convert to data URI for the AI model
-            const response = await fetch(userProfile.avatarUrl);
-            const blob = await response.blob();
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = async () => {
-                const base64data = reader.result as string;
-                const result = await generateAvatar({ imageDataUri: base64data, style });
-                updateDocumentNonBlocking(userProfileRef, { avatarUrl: result.imageUrl });
-                toast({ title: 'Success!', description: `Your new ${style} avatar is ready.` });
-                setIsGeneratingAvatar(false);
-            };
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Generation Failed', description: error.message });
-            setIsGeneratingAvatar(false);
-        }
-    };
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -297,18 +268,12 @@ export default function AccountPage() {
                                 type="file"
                                 accept="image/*"
                                 onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
-                                disabled={isUploading || isGeneratingAvatar}
+                                disabled={isUploading}
                             />
-                            <Button onClick={handleAvatarUpload} disabled={!avatarFile || isUploading || isGeneratingAvatar} className="w-full">
+                            <Button onClick={handleAvatarUpload} disabled={!avatarFile || isUploading} className="w-full">
                                 {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Upload Picture
                             </Button>
-                             <div className="flex gap-2 justify-center">
-                                <Button size="sm" variant="secondary" onClick={() => handleGenerateAvatar('Pixel')} disabled={!userProfile?.avatarUrl || isGeneratingAvatar || isUploading}>Pixel</Button>
-                                <Button size="sm" variant="secondary" onClick={() => handleGenerateAvatar('Anime')} disabled={!userProfile?.avatarUrl || isGeneratingAvatar || isUploading}>Anime</Button>
-                                <Button size="sm" variant="secondary" onClick={() => handleGenerateAvatar('Cartoon')} disabled={!userProfile?.avatarUrl || isGeneratingAvatar || isUploading}>Cartoon</Button>
-                            </div>
-                            {isGeneratingAvatar && <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="animate-spin h-4 w-4" /> Generating...</div>}
                         </CardContent>
                     </Card>
                 </div>
